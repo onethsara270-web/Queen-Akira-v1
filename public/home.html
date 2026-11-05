@@ -1,0 +1,171 @@
+<!DOCTYPE html><html><head><title>QUEEN ZARA MINI</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="description" content="{{BOT_NAME}} — WhatsApp multi-device bot platform by {{OWNER_NAME}}">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared.css">
+<style>
+.wrapper{max-width:540px;text-align:center}
+.status-pill{
+  display:inline-flex;align-items:center;gap:8px;
+  padding:10px 20px;border-radius:50px;
+  background:var(--surface);
+  border:1.5px solid var(--border);
+  margin:8px 0 22px;
+  font-size:0.84em;font-weight:700;
+  font-family:'JetBrains Mono',monospace;
+}
+.status-pill .dot{width:8px;height:8px;border-radius:50%}
+.status-pill .dot.on{
+  background:var(--accent);
+  box-shadow:0 0 12px var(--accent),0 0 24px var(--accent-glow);
+  animation:pulse 1.6s infinite;
+}
+.status-pill .dot.off{
+  background:var(--danger);
+  box-shadow:0 0 12px var(--danger);
+  animation:pulse 1.6s infinite;
+}
+@keyframes pulse{50%{opacity:0.4;transform:scale(0.8)}}
+
+.stat-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:24px}
+.stat-box{
+  background:var(--surface);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius-sm);
+  padding:14px 6px;
+}
+.stat-box .n{
+  font-size:1.2em;font-weight:900;
+  color:var(--accent);
+  font-family:'JetBrains Mono',monospace;
+  text-shadow:0 0 20px var(--accent-glow);
+}
+.stat-box .l{
+  font-size:0.6em;color:var(--text-dim);
+  letter-spacing:1.5px;text-transform:uppercase;
+  font-weight:700;margin-top:3px;
+  font-family:'JetBrains Mono',monospace;
+}
+
+.actions{display:flex;flex-direction:column;gap:10px;margin-top:2px}
+.action-btn{
+  display:flex;align-items:center;justify-content:center;gap:10px;
+  padding:18px;border-radius:var(--radius-sm);
+  font-weight:800;text-decoration:none;font-size:0.9em;
+  letter-spacing:1px;transition:all 0.35s cubic-bezier(0.2,0.9,0.3,1);
+  position:relative;overflow:hidden;border:none;cursor:pointer;
+  font-family:'JetBrains Mono',monospace;
+}
+.action-btn.primary{
+  background:var(--accent);
+  color:var(--bg);
+  box-shadow:0 0 0 1px var(--accent),0 12px 35px var(--accent-glow);
+  clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));
+}
+.action-btn.primary:hover{
+  transform:translateY(-3px);
+  box-shadow:0 0 0 1px var(--accent),0 18px 45px var(--accent-glow-strong);
+}
+.action-btn.secondary{
+  background:transparent;
+  border:1.5px dashed var(--border-active);
+  color:var(--text-mid);
+}
+.action-btn.secondary:hover{
+  transform:translateY(-3px);
+  border-color:var(--accent);
+  color:var(--accent);
+  box-shadow:0 0 25px var(--accent-glow);
+}
+.action-btn .emoji{font-size:1.3em}
+
+.feature-grid{
+  display:grid;grid-template-columns:repeat(2,1fr);gap:10px;
+  margin:24px 0;text-align:left;
+}
+.feature{
+  background:var(--surface);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius-sm);padding:14px;
+  transition:border-color 0.3s;
+}
+.feature:hover{border-color:var(--border-active)}
+.feature .fi{font-size:1.3em;margin-bottom:4px}
+.feature .ft{font-size:0.78em;font-weight:800;color:var(--text);margin-bottom:2px;font-family:'JetBrains Mono',monospace}
+.feature .fd{font-size:0.68em;color:var(--text-dim);line-height:1.4}
+
+.links-row{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+.links-row a{
+  padding:8px 14px;border-radius:var(--radius-sm);
+  font-size:0.74em;font-weight:700;
+  background:var(--surface);
+  border:1.5px solid var(--border);
+  color:var(--text-mid);text-decoration:none;
+  transition:all 0.3s;
+  font-family:'JetBrains Mono',monospace;
+}
+.links-row a:hover{
+  border-color:var(--accent);
+  color:var(--accent);
+  box-shadow:0 0 15px var(--accent-glow);
+}
+
+@media(max-width:420px){
+  .stat-box .n{font-size:1em}
+  .stat-box .l{font-size:0.54em;letter-spacing:1px}
+  .feature-grid{grid-template-columns:1fr}
+}
+</style></head>
+<body>
+<div class="orb a"></div><div class="orb b"></div><div class="orb c"></div>
+<div class="wrapper">
+  <div class="emoji-logo">🤖</div>
+  <h1 class="logo-text">QUEEN ZARA MINI</h1>
+  <div class="subtitle">WhatsApp Bot Platform</div>
+  <div class="status-pill">
+    <span class="dot {{STATUS_CLASS}}" id="dot"></span>
+    <span id="statusText">{{STATUS_TEXT}}</span>
+  </div>
+
+  <div class="stat-grid">
+    <div class="stat-box"><div class="n" id="statUptime">—</div><div class="l">Uptime</div></div>
+    <div class="stat-box"><div class="n" id="statBots">—</div><div class="l">Active Bots</div></div>
+    <div class="stat-box"><div class="n" id="statUsers">—</div><div class="l">Total Users</div></div>
+  </div>
+
+  <div class="actions">
+    <a href="/login" class="action-btn primary">
+      <span class="emoji">🔐</span>
+      <span>Dashboard Login</span>
+    </a>
+    <a href="/freebot" class="action-btn secondary">
+      <span class="emoji">🚀</span>
+      <span>Deploy Free Bot</span>
+    </a>
+  </div>
+
+  <div class="feature-grid">
+    <div class="feature"><div class="fi">📢</div><div class="ft">Channel Status</div><div class="fd">Post text/image/video as a real channel status, not a chat message.</div></div>
+    <div class="feature"><div class="fi">👥</div><div class="ft">Group Status</div><div class="fd">Push a status update straight into any group you admin.</div></div>
+    <div class="feature"><div class="fi">🗂️</div><div class="ft">Card Menu</div><div class="fd">Swipeable category menu with every command, built in.</div></div>
+    <div class="feature"><div class="fi">🧩</div><div class="ft">Plugin System</div><div class="fd">Drop a file in <code>plugins/</code> and it's a command. See the README.</div></div>
+  </div>
+
+  <div class="links-row">
+    <a href="{{CHANNEL_LINK}}" target="_blank" rel="noopener">📢 Channel</a>
+    <a href="/status" target="_blank" rel="noopener">📊 API Status</a>
+  </div>
+
+  <div class="footer">✨ Powered by <span>FIXO DEV</span> 🖤</div>
+</div>
+<script>
+fetch('/status').then(r => r.json()).then(d => {
+  document.getElementById('statUptime').textContent = d.uptimeFormatted || '0s';
+  document.getElementById('statBots').textContent = (d.users && d.users.activeBots) ?? '0';
+  document.getElementById('statUsers').textContent = (d.users && d.users.total) ?? '0';
+  const on = d.status === 'online';
+  document.getElementById('dot').className = 'dot ' + (on ? 'on' : 'off');
+  document.getElementById('statusText').textContent = on ? 'Bot is Online' : 'Bot is Offline';
+}).catch(() => {});
+</script>
+</body></html>
