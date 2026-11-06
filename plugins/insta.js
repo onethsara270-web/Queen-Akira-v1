@@ -1,11 +1,13 @@
-// plugins/insta.js
+// plugins/instagram.js
 const axios = require('axios');
 const config = require('../config');
 const { cmd } = require('../command');
 
 // ── Config ───────────────────────────────
-const BOT_NAME    = "Queen Zara";
-const API_TIMEOUT = 20000;
+const BOT_NAME    = config.BOT_NAME || "Queen Zara";
+const API_TIMEOUT = 30000; 
+const FIXO_API_KEY = config.FIXO_API_KEY;
+const NEWSLETTER_URL = "https://whatsapp.com/channel/120363409660898486"; // Newsletter Link
 // ─────────────────────────────────────────
 
 function pickUrl(s = '') {
@@ -13,43 +15,23 @@ function pickUrl(s = '') {
     return m ? m[0] : '';
 }
 
-// ── Normalize API responses ───────────────
-function extractMedia(data) {
-    const r = data?.result || data?.data || data;
-    const list = Array.isArray(r) ? r : (r?.medias || r?.items || []);
-    const out = [];
-
-    for (const item of list) {
-        if (!item) continue;
-        const url  = item.url || item.downloadUrl || item.src;
-        const type = (item.type || '').toLowerCase()
-            || (url && /\.(mp4|webm|mov)(\?|$)/i.test(url) ? 'video' : 'image');
-        if (url && typeof url === 'string') {
-            out.push({ url, type: type === 'video' ? 'video' : 'image' });
-        }
-    }
-    return out;
-}
-
-// ── APIs in order ─────────────────────────
-function buildApis(url) {
-    const enc = encodeURIComponent(url);
-    return [
-        `https://api.vreden.my.id/api/igdownload?url=${enc}`,
-        `https://api.siputzx.my.id/api/d/igdl?url=${enc}`,
-        `https://api.alyachan.xyz/api/igdl?url=${enc}`
-    ];
+function isInstagramUrl(url) {
+    return /(?:instagram\.com|instagr\.am)/i.test(url);
 }
 
 cmd({
-    pattern: "insta",
-    alias: ["ig", "igdl", "instagram"],
-    use: '.insta <instagram url>',
-    desc: "Download Instagram post/reel media",
+    pattern: "ig",
+    alias: ["insta", "igdl", "reels"],
+    use: '.ig <instagram url>',
+    desc: "Download an Instagram video/reel via Fixo API",
     category: "download",
     react: "📸",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
+
+    if (!FIXO_API_KEY) {
+        return reply('❌ *API Key Error:*\n`config.env` is missing FIXO_API_KEY.');
+    }
 
     const url = pickUrl(q || '');
     if (!url) {
@@ -57,63 +39,62 @@ cmd({
         return reply(
             `❌ *Please provide an Instagram URL.*\n\n` +
             `📌 *Example:*\n` +
-            `.insta https://www.instagram.com/reel/XXXXX`
+            `.ig https://www.instagram.com/reel/...`
         );
+    }
+
+    if (!isInstagramUrl(url)) {
+        await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
+        return reply('❌ *Not a valid Instagram link.*');
     }
 
     try {
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
-        let media = [];
-        let lastErr = '';
+        // ── Fixo API Call ─────────────────────────────
+        const apiUrl = `https://fixo-api-p15j.onrender.com/api/instagram?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
+        
+        const { data } = await axios.get(apiUrl, {
+            timeout: API_TIMEOUT,
+            headers: { Accept: 'application/json' }
+        });
 
-        for (const api of buildApis(url)) {
-            try {
-                const { data } = await axios.get(api, {
-                    timeout: API_TIMEOUT,
-                    headers: { Accept: 'application/json' },
-                    validateStatus: s => s < 500
-                });
-                media = extractMedia(data);
-                if (media.length) break;
-            } catch (e) {
-                lastErr = e.message;
-                console.error(`[insta] ${api.split('?')[0]} →`, e.message);
-            }
+        if (!data.success || !data.video_url) {
+            throw new Error(data.error || "Failed to get video URL from API.");
         }
 
-        if (!media.length) {
-            await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-            return reply(
-                `❌ *No media found.*\n\n` +
-                `Make sure the link is public.\n` +
-                (lastErr ? `_${lastErr}_` : '')
-            );
-        }
+        // ── Download Video Buffer ─────────────────────
+        const videoRes = await axios.get(data.video_url, {
+            responseType: 'arraybuffer',
+            timeout: API_TIMEOUT,
+            headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
+        const buffer = Buffer.from(videoRes.data, 'binary');
 
-        // ── Send every item ─────────────────
-        for (let i = 0; i < media.length; i++) {
-            const item = media[i];
-            const caption = `✅ *Instagram ${item.type === 'video' ? 'Video' : 'Image'}*` +
-                (media.length > 1 ? ` (${i + 1}/${media.length})` : '') +
-                `\n\n⚡ Powered by ${BOT_NAME}`;
+        // ── Send ─────────────────────────────
+        const caption =
+            `✅ *INSTAGRAM VIDEO*\n\n` +
+            `⚡ *Powered by ${BOT_NAME}*\n\n` +
+            `📢 *Join our Newsletter:*\n` +
+            `${NEWSLETTER_URL}`;
 
-            try {
-                if (item.type === 'video') {
-                    await conn.sendMessage(from, { video: { url: item.url }, caption }, { quoted: mek });
-                } else {
-                    await conn.sendMessage(from, { image: { url: item.url }, caption }, { quoted: mek });
-                }
-            } catch (sendErr) {
-                console.error(`[insta] send item ${i + 1}:`, sendErr.message);
-            }
-        }
+        await conn.sendMessage(from, {
+            video: buffer,
+            caption: caption,
+            mimetype: 'video/mp4'
+        }, { quoted: mek });
 
         await conn.sendMessage(from, { react: { text: '✅', key: mek.key } }).catch(() => {});
 
     } catch (e) {
-        console.error('[insta]', e);
+        console.error('[instagram] Error:', e.message);
         await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-        return reply('❌ *Error downloading Instagram content.* Make sure the link is public.');
+        
+        let errMsg = e.message;
+        if (e.code === 'ECONNABORTED') {
+            errMsg = "API timeout. Server might be waking up. Please try again.";
+        }
+
+        return reply(`❌ *Error downloading Instagram video:*\n_${errMsg}_`);
     }
 });
