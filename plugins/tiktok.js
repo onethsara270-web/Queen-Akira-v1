@@ -5,7 +5,9 @@ const { cmd } = require('../command');
 
 // ── Config ───────────────────────────────
 const BOT_NAME    = "Queen Zara";
-const API_TIMEOUT = 20000;
+const API_TIMEOUT = 30000; // Render free tier එක නිදාගෙන ඉන්න පුළුවන් නිසා ටයිම් එක වැඩි කළා
+// ඔයාගේ Fixo API key එක මෙතන දාන්න (නැත්නම් config එකෙන් ගන්න හදන්න)
+const FIXO_API_KEY = config.FIXO_API_KEY || process.env.FIXO_API_KEY || "fixo_ඔයාගේ_key_එක_මෙතන_daන්න";
 // ─────────────────────────────────────────
 
 function pickUrl(s = '') {
@@ -17,35 +19,11 @@ function isTikTokUrl(url) {
     return /(?:tiktok\.com|vt\.tiktok\.com|vm\.tiktok\.com)/i.test(url);
 }
 
-// ── Extract video URL from various API shapes ──
-function extractVideo(data) {
-    // tikwm.com
-    if (data?.data?.play) {
-        return {
-            url:   data.data.play,
-            hd:    data.data.hdplay || data.data.play,
-            title: data.data.title || 'TikTok Video',
-            author: data.data.author?.nickname || data.data.author?.unique_id || 'TikTok'
-        };
-    }
-    // generic
-    const r = data?.result || data?.data || data;
-    if (r?.video || r?.play || r?.url) {
-        return {
-            url:    r.hdplay || r.hd || r.video || r.play || r.url,
-            hd:     r.hd || r.hdplay,
-            title:  r.title || r.desc || 'TikTok Video',
-            author: r.author?.nickname || r.author || 'TikTok'
-        };
-    }
-    return null;
-}
-
 cmd({
     pattern: "tiktok",
     alias: ["tt", "ttdl", "tikwm"],
     use: '.tiktok <tiktok url>',
-    desc: "Download a TikTok video",
+    desc: "Download a TikTok video via Fixo API",
     category: "download",
     react: "📱",
     filename: __filename
@@ -63,59 +41,51 @@ cmd({
 
     if (!isTikTokUrl(url)) {
         await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-        return reply('❌ *Not a TikTok link.*');
+        return reply('❌ *Not a valid TikTok link.*');
     }
 
     try {
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
-        // ── APIs ─────────────────────────────
-        const apis = [
-            `https://tikwm.com/api/?url=${encodeURIComponent(url)}`,
-            `https://api.siputzx.my.id/api/d/tiktok?url=${encodeURIComponent(url)}`,
-            `https://api.vreden.my.id/api/tiktok?url=${encodeURIComponent(url)}`
-        ];
+        // ── Fixo API Call ─────────────────────────────
+        const apiUrl = `https://fixo-api-p15j.onrender.com/api/tiktok?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
+        
+        const { data } = await axios.get(apiUrl, {
+            timeout: API_TIMEOUT,
+            headers: { Accept: 'application/json' }
+        });
 
-        let info = null;
-        let lastErr = '';
-
-        for (const api of apis) {
-            try {
-                const { data } = await axios.get(api, {
-                    timeout: API_TIMEOUT,
-                    headers: { Accept: 'application/json' },
-                    validateStatus: s => s < 500
-                });
-                info = extractVideo(data);
-                if (info?.url) break;
-            } catch (e) {
-                lastErr = e.message;
-                console.error(`[tiktok] ${api.split('?')[0]} →`, e.message);
-            }
-        }
-
-        if (!info?.url) {
-            await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-            return reply(`❌ *Could not fetch TikTok video.*\n${lastErr ? `_${lastErr}_` : ''}`);
+        // API එකෙන් success එකක් ආවේ නැත්නම් error එකක් දෙන්න
+        if (!data.success || !data.video_url) {
+            throw new Error("API එකෙන් වීඩියෝ එක ගන්න බැරි වුනා");
         }
 
         // ── Send ─────────────────────────────
         const caption =
             `✅ *TIKTOK VIDEO*\n\n` +
-            `📌 *Title:* ${info.title}\n` +
-            `👤 *Author:* ${info.author}\n\n` +
+            `📌 *Title:* ${data.title}\n` +
+            `👤 *Author:* ${data.author}\n\n` +
             `⚡ Powered by ${BOT_NAME}`;
 
+        // වීඩියෝ එක කෙලින්ම URL එකෙන් යවනවා (Buffer ඕන නෑ, ඒක ලේසියි)
         await conn.sendMessage(from, {
-            video: { url: info.hd || info.url },
-            caption
+            video: { url: data.video_url },
+            caption: caption,
+            mimetype: 'video/mp4'
         }, { quoted: mek });
 
         await conn.sendMessage(from, { react: { text: '✅', key: mek.key } }).catch(() => {});
 
     } catch (e) {
-        console.error('[tiktok]', e);
+        console.error('[tiktok] Error:', e.message);
         await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-        return reply(`❌ *Error downloading TikTok:*\n_${e.message}_`);
+        
+        // Render API එක sleep වෙලා නම් එන එරර් එක ලස්සනට පෙන්නනවා
+        let errMsg = e.message;
+        if (e.code === 'ECONNABORTED') {
+            errMsg = "API එක අවදි වෙන්න වෙලා ගියා. ආයේ පාරක් ට්‍රයි කරන්න.";
+        }
+
+        return reply(`❌ *Error downloading TikTok:*\n_${errMsg}_`);
     }
 });
