@@ -4,7 +4,7 @@ const config = require('../config');
 const { cmd } = require('../command');
 
 // ── Config ───────────────────────────────
-const BOT_NAME    = "Queen Zara"; // Bot Name
+const BOT_NAME    = "Queen Zara";
 const API_TIMEOUT = 60000; 
 const FIXO_API_KEY = config.FIXO_API_KEY;
 const NEWSLETTER_JID = "120363409660898486@newsletter";
@@ -83,7 +83,7 @@ cmd({
                 isForwarded: true,
                 forwardedNewsletterMessageInfo: {
                     newsletterJid: NEWSLETTER_JID,
-                    newsletterName: 'Queen Zara',
+                    newsletterName: "Queen Zara",
                     serverMessageId: -1
                 }
             }
