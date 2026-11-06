@@ -4,10 +4,10 @@ const config = require('../config');
 const { cmd } = require('../command');
 
 // ── Config ───────────────────────────────
-const BOT_NAME    = "Queen Zara";
-const API_TIMEOUT = 30000; // Render free tier එක නිදාගෙන ඉන්න පුළුවන් නිසා ටයිම් එක වැඩි කළා
-// ඔයාගේ Fixo API key එක මෙතන දාන්න (නැත්නම් config එකෙන් ගන්න හදන්න)
-const FIXO_API_KEY = config.FIXO_API_KEY || process.env.FIXO_API_KEY || "fixo_ඔයාගේ_key_එක_මෙතන_daන්න";
+// Config එකේ තියෙන BOT_NAME එක ගන්නවා, නැත්නම් default "Queen Zara"
+const BOT_NAME    = config.BOT_NAME || "Queen Zara";
+const API_TIMEOUT = 30000; 
+const FIXO_API_KEY = config.FIXO_API_KEY; // config.js එකෙන් key එක ගන්නවා
 // ─────────────────────────────────────────
 
 function pickUrl(s = '') {
@@ -28,6 +28,11 @@ cmd({
     react: "📱",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
+
+    // API Key එක නැත්නම් වැඩේ කරන්නේ නෑ
+    if (!FIXO_API_KEY) {
+        return reply('❌ *API Key Error:*\n`config.env` එකේ FIXO_API_KEY එක දාලා නෑ. කරුණාකර ඒක හරි කරලා බොට් එක Restart කරන්න.');
+    }
 
     const url = pickUrl(q || '');
     if (!url) {
@@ -57,7 +62,7 @@ cmd({
 
         // API එකෙන් success එකක් ආවේ නැත්නම් error එකක් දෙන්න
         if (!data.success || !data.video_url) {
-            throw new Error("API එකෙන් වීඩියෝ එක ගන්න බැරි වුනා");
+            throw new Error(data.error || "API එකෙන් වීඩියෝ එක ගන්න බැරි වුනා");
         }
 
         // ── Send ─────────────────────────────
@@ -84,6 +89,8 @@ cmd({
         let errMsg = e.message;
         if (e.code === 'ECONNABORTED') {
             errMsg = "API එක අවදි වෙන්න වෙලා ගියා. ආයේ පාරක් ට්‍රයි කරන්න.";
+        } else if (e.response && e.response.status === 403) {
+            errMsg = "ඔයාගේ API Key එක වැරදියි හෝ Revoke කරලා තියෙනවා.";
         }
 
         return reply(`❌ *Error downloading TikTok:*\n_${errMsg}_`);
