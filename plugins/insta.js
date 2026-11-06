@@ -4,10 +4,11 @@ const config = require('../config');
 const { cmd } = require('../command');
 
 // ── Config ───────────────────────────────
-const BOT_NAME    = config.BOT_NAME || "Queen Zara";
-const API_TIMEOUT = 30000; 
+const BOT_NAME    = "Queen Zara"; // Bot Name
+const API_TIMEOUT = 60000; 
 const FIXO_API_KEY = config.FIXO_API_KEY;
-const NEWSLETTER_URL = "https://whatsapp.com/channel/120363409660898486"; // Newsletter Link
+const NEWSLETTER_JID = "120363409660898486@newsletter";
+const NEWSLETTER_URL = "https://whatsapp.com/channel/120363409660898486";
 // ─────────────────────────────────────────
 
 function pickUrl(s = '') {
@@ -23,7 +24,7 @@ cmd({
     pattern: "ig",
     alias: ["insta", "igdl", "reels"],
     use: '.ig <instagram url>',
-    desc: "Download an Instagram video/reel via Fixo API",
+    desc: "Download an Instagram video/reel",
     category: "download",
     react: "📸",
     filename: __filename
@@ -54,34 +55,38 @@ cmd({
         // ── Fixo API Call ─────────────────────────────
         const apiUrl = `https://fixo-api-p15j.onrender.com/api/instagram?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
         
-        const { data } = await axios.get(apiUrl, {
-            timeout: API_TIMEOUT,
-            headers: { Accept: 'application/json' }
-        });
-
-        if (!data.success || !data.video_url) {
-            throw new Error(data.error || "Failed to get video URL from API.");
-        }
-
-        // ── Download Video Buffer ─────────────────────
-        const videoRes = await axios.get(data.video_url, {
+        const res = await axios.get(apiUrl, {
             responseType: 'arraybuffer',
             timeout: API_TIMEOUT,
-            headers: { 'User-Agent': 'Mozilla/5.0' }
+            headers: { Accept: '*/*' }
         });
-        const buffer = Buffer.from(videoRes.data, 'binary');
 
-        // ── Send ─────────────────────────────
+        const buffer = Buffer.from(res.data, 'binary');
+        if (!buffer || buffer.length === 0) {
+            throw new Error("Empty video buffer received.");
+        }
+
+        // ── Caption ─────────────────────────────
         const caption =
             `✅ *INSTAGRAM VIDEO*\n\n` +
             `⚡ *Powered by ${BOT_NAME}*\n\n` +
             `📢 *Join our Newsletter:*\n` +
             `${NEWSLETTER_URL}`;
 
+        // ── Send as Forwarded Newsletter Message ──
         await conn.sendMessage(from, {
             video: buffer,
             caption: caption,
-            mimetype: 'video/mp4'
+            mimetype: 'video/mp4',
+            contextInfo: {
+                forwardingScore: 999,
+                isForwarded: true,
+                forwardedNewsletterMessageInfo: {
+                    newsletterJid: NEWSLETTER_JID,
+                    newsletterName: 'Queen Zara',
+                    serverMessageId: -1
+                }
+            }
         }, { quoted: mek });
 
         await conn.sendMessage(from, { react: { text: '✅', key: mek.key } }).catch(() => {});
