@@ -118,11 +118,10 @@ const baseConfig = {
     ANTI_LINK_SKIP_BOT: get('ANTI_LINK_SKIP_BOT', "true"),
 
     // ─── DATABASE & API ───
-    // Dashboard login password (change it! or set DASHBOARD_PASSWORD env)
-    DASHBOARD_PASSWORD: process.env.DASHBOARD_PASSWORD || get('DASHBOARD_PASSWORD', 'fixo123'),
-    // MongoDB (env MONGODB_URI overrides). Stores config, users and the owner session.
-    MONGODB_URI: process.env.MONGODB_URI || get('MONGODB_URI', 'mongodb+srv://fixodev1_db_user:tYaX69ozKljm0Eha@cluster0.t8xf96n.mongodb.net/adcash_lk?appName=Cluster0'),
-    MONGODB_DB_NAME: process.env.MONGODB_DB_NAME || get('MONGODB_DB_NAME', 'adcash_lk')
+FIXO_API_KEY: process.env.FIXO_API_KEY || get('FIXO_API_KEY', ""), // ⬅️ මේක අලුතෙන් දාන්න
+DASHBOARD_PASSWORD: process.env.DASHBOARD_PASSWORD || get('DASHBOARD_PASSWORD', 'fixo123'),
+MONGODB_URI: process.env.MONGODB_URI || get('MONGODB_URI', 'mongodb+srv://fixodev1_db_user:tYaX69ozKljm0Eha@cluster0.t8xf96n.mongodb.net/adcash_lk?appName=Cluster0'),
+MONGODB_DB_NAME: process.env.MONGODB_DB_NAME || get('MONGODB_DB_NAME', 'adcash_lk')
 };
 
 console.log('🔑 SESSION_ID:', baseConfig.SESSION_ID ? 'loaded' : 'not set (pairing code will be used)');
