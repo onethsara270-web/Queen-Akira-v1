@@ -4,21 +4,16 @@ const yts = require('yt-search');
 const config = require('../config');
 const { cmd } = require('../command');
 
-// ── Config ───────────────────────────────
-const BOT_NAME    = config.BOT_NAME || "Queen Zara";
-const API_TIMEOUT = 120000; // Audio එකක් නිසා වෙලාව ටිකක් වැඩියෙන් දෙනවා
 const FIXO_API_KEY = config.FIXO_API_KEY;
-// ─────────────────────────────────────────
+const API_TIMEOUT = 120000;
 
-// ලින්ක් එකක් නැත්නම් සින්දුවේ නමින් හොයාගන්න helper function එකක්
 async function getVideoUrl(query) {
     if (/youtube\.com|youtu\.be/i.test(query)) {
         return { url: query, title: 'YouTube Audio' };
     }
     const search = await yts(query);
-    if (!search?.videos?.length) throw new Error("No results found for your search.");
-    const video = search.videos[0];
-    return { url: video.url, title: video.title };
+    if (!search?.videos?.length) throw new Error("No results found.");
+    return { url: search.videos[0].url, title: search.videos[0].title };
 }
 
 cmd({
@@ -31,43 +26,39 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
 
-    // API Key එක නැත්නම් වැඩේ කරන්නේ නෑ
-    if (!FIXO_API_KEY) {
-        return reply('❌ *API Key Error:*\n`config.env` එකේ FIXO_API_KEY එක දාලා නෑ. කරුණාකර ඒක හරි කරලා බොට් එක Restart කරන්න.');
-    }
+    if (!FIXO_API_KEY) return reply('❌ *API Key Error:* config.env එකේ FIXO_API_KEY එක දාලා නෑ.');
 
     const query = (q || '').trim();
-    if (!query) {
-        await conn.sendMessage(from, { react: { text: 'ℹ️', key: mek.key } }).catch(() => {});
-        return reply('🎵 *Usage:* .song <song name or YouTube URL>');
-    }
+    if (!query) return reply('🎵 *Usage:* .song <song name or YouTube URL>');
 
     try {
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
-        // වීඩියෝ එකේ ලින්ක් එක හොයාගන්නවා
         const videoInfo = await getVideoUrl(query);
-        
         await reply(`🎵 *Downloading Audio...*\n\n📌 ${videoInfo.title}`);
 
-        // ── Fixo API Call ─────────────────────────────
+        // 1. Fixo API එකෙන් ඩවුන්ලෝඩ් ලින්ක් එක ගන්නවා (JSON)
         const apiUrl = `https://fixo-api-p15j.onrender.com/api/song?url=${encodeURIComponent(videoInfo.url)}&api_key=${FIXO_API_KEY}`;
-        
-        const res = await axios.get(apiUrl, {
-            responseType: 'arraybuffer', // ෆයිල් එකක් නිසා arraybuffer ගන්නවා
-            timeout: API_TIMEOUT,
-            headers: { Accept: '*/*' },
-            maxContentLength: 100 * 1024 * 1024 // 100MB
-        });
+        const apiRes = await axios.get(apiUrl, { timeout: 20000 });
 
-        const buffer = Buffer.from(res.data, 'binary');
-        if (!buffer || buffer.length === 0) {
-            throw new Error("Empty audio buffer received");
+        if (!apiRes.data.success || !apiRes.data.download_url) {
+            throw new Error("API එකෙන් ලින්ක් එක ගන්න බැරි වුනා");
         }
 
-        // ── Send ─────────────────────────────
-        const safeName = (videoInfo.title || 'audio').replace(/[^\w\s-]/g, '').trim() || 'audio';
+        // 2. ඒ ලින්ක් එකෙන් ෆයිල් එක ඩවුන්ලෝඩ් කරගන්නවා (Buffer)
+        const dl = await axios.get(apiRes.data.download_url, {
+            responseType: 'arraybuffer',
+            timeout: API_TIMEOUT,
+            headers: { 'User-Agent': 'Mozilla/5.0' },
+            maxContentLength: 100 * 1024 * 1024
+        });
 
+        const buffer = Buffer.from(dl.data, 'binary');
+        if (!buffer || buffer.length === 0) throw new Error("Empty audio buffer");
+
+        const safeName = (apiRes.data.title || 'audio').replace(/[^\w\s-]/g, '').trim() || 'audio';
+
+        // 3. යවනවා
         await conn.sendMessage(from, {
             audio: buffer,
             mimetype: 'audio/mpeg',
@@ -80,14 +71,6 @@ cmd({
     } catch (e) {
         console.error('[song] Error:', e.message);
         await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-        
-        let errMsg = e.message;
-        if (e.code === 'ECONNABORTED') {
-            errMsg = "API එක අවදි වෙන්න වෙලා ගියා හෝ ෆයිල් එක ලොකු වැඩි. ආයේ පාරක් ට්‍රයි කරන්න.";
-        } else if (e.response && e.response.status === 403) {
-            errMsg = "ඔයාගේ API Key එක වැරදියි හෝ Revoke කරලා තියෙනවා.";
-        }
-
-        return reply(`❌ *Error downloading song:*\n_${errMsg}_`);
+        return reply(`❌ *Error downloading song:*\n_${e.message}_`);
     }
 });
