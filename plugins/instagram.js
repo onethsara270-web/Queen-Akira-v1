@@ -46,25 +46,21 @@ cmd({
     try {
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
-        // 1. Fixo API Call (Link එක ගන්නවා)
+        // Fixo API Call
         const apiUrl = `https://fixo-api-p15j.onrender.com/api/instagram?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
-        const { data } = await axios.get(apiUrl, { timeout: 20000 });
-
-        if (!data.success || !data.video_url) {
-            throw new Error(data.error || "Failed to get video URL from API.");
-        }
-
-        // 2. ලින්ක් එකෙන් වීඩියෝ එක බාගන්නවා
-        const videoRes = await axios.get(data.video_url, {
+        
+        const res = await axios.get(apiUrl, {
             responseType: 'arraybuffer',
             timeout: API_TIMEOUT,
-            headers: { 'User-Agent': 'Mozilla/5.0' }
+            headers: { Accept: '*/*' }
         });
 
-        const buffer = Buffer.from(videoRes.data, 'binary');
-        if (!buffer || buffer.length === 0) throw new Error("Empty video buffer received.");
+        const buffer = Buffer.from(res.data, 'binary');
+        if (!buffer || buffer.length === 0) {
+            throw new Error("Empty video buffer received.");
+        }
 
-        // 3. Forwarded Newsletter Message එකක් විදියට යවනවා
+        // Forwarded Newsletter Message
         const caption =
             `✅ *INSTAGRAM VIDEO*\n\n` +
             `⚡ *Powered by ${BOT_NAME}*\n\n` +
