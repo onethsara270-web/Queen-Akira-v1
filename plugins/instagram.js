@@ -98,6 +98,8 @@ cmd({
         let errMsg = e.message;
         if (e.code === 'ECONNABORTED') {
             errMsg = "API timeout. Server might be waking up. Please try again.";
+        } else if (e.response && e.response.status === 500) {
+            errMsg = "Instagram blocked the download. Please try a different link.";
         }
 
         return reply(`❌ *Error downloading Instagram video:*\n_${errMsg}_`);
