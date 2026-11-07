@@ -1,122 +1,104 @@
-// plugins/fb.js
+// plugins/facebook.js
 const axios = require('axios');
 const config = require('../config');
 const { cmd } = require('../command');
 
 // ── Config ───────────────────────────────
 const BOT_NAME    = "Queen Zara";
-const API_TIMEOUT = 20000;
+const API_TIMEOUT = 60000; 
+const FIXO_API_KEY = config.FIXO_API_KEY;
+const NEWSLETTER_JID = "120363409660898486@newsletter";
+const NEWSLETTER_URL = "https://whatsapp.com/channel/120363409660898486";
 // ─────────────────────────────────────────
 
-// ── Extract first http(s) URL from string ──
 function pickUrl(s = '') {
     const m = String(s).match(/https?:\/\/\S+/i);
     return m ? m[0] : '';
 }
 
-// ── APIs (tried in order) ─────────────────
-function buildApis(url) {
-    const enc = encodeURIComponent(url);
-    return [
-        `https://api.siputzx.my.id/api/d/fb?url=${enc}`,
-        `https://api.nexoracle.com/downloader/facebook?url=${enc}`,
-        `https://api.alyachan.xyz/api/fbdl?url=${enc}`
-    ];
-}
-
-// ── Normalize whatever JSON shape comes back ──
-function extractVideo(data) {
-    const r = data?.data || data?.result || data;
-    const list = Array.isArray(r) ? r : [r];
-
-    for (const item of list) {
-        if (!item) continue;
-        const hd  = item.hd || item.HD || item.hdUrl;
-        const sd  = item.sd || item.SD || item.sdUrl;
-        const url = item.url || item.downloadUrl || item.video || item.videoUrl;
-
-        const media = hd || sd || url;
-        if (media && typeof media === 'string') {
-            return {
-                videoUrl: media,
-                title:    item.title || item.desc || 'Facebook Video',
-                desc:     item.description || item.snippet || ''
-            };
-        }
-    }
-    return null;
+function isFacebookUrl(url) {
+    return /(?:facebook\.com|fb\.watch)/i.test(url);
 }
 
 cmd({
     pattern: "fb",
-    alias: ["fbdl", "facebook"],
-    use: '.fb <facebook video url>',
-    desc: "Download a Facebook video/reel",
+    alias: ["facebook", "fbdl"],
+    use: '.fb <facebook url>',
+    desc: "Download a Facebook video",
     category: "download",
-    react: "📥",
+    react: "📘",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
 
-    const fbUrl = pickUrl(q || '');
-    if (!fbUrl) {
+    if (!FIXO_API_KEY) {
+        return reply('❌ *API Key Error:*\n`config.env` is missing FIXO_API_KEY.');
+    }
+
+    const url = pickUrl(q || '');
+    if (!url) {
         await conn.sendMessage(from, { react: { text: 'ℹ️', key: mek.key } }).catch(() => {});
         return reply(
-            `*𝐏ℓєαʂє 𝐏ɼ๏νιɖє 𝐀 fb҇ 𝐕ιɖє๏ ๏ɼ ɼєєℓ 𝐔ɼℓ..*\n\n` +
+            `❌ *Please provide a Facebook URL.*\n\n` +
             `📌 *Example:*\n` +
-            `.fb https://www.facebook.com/watch/?v=123456789`
+            `.fb https://www.facebook.com/reel/...`
         );
+    }
+
+    if (!isFacebookUrl(url)) {
+        await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
+        return reply('❌ *Not a valid Facebook link.*');
     }
 
     try {
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
-        let picked = null;
-        let lastErr = '';
+        // Fixo API Call (Get Video Buffer)
+        const apiUrl = `https://fixo-api-p15j.onrender.com/api/facebook?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
+        
+        const res = await axios.get(apiUrl, {
+            responseType: 'arraybuffer',
+            timeout: API_TIMEOUT,
+            headers: { Accept: '*/*' }
+        });
 
-        for (const api of buildApis(fbUrl)) {
-            try {
-                const { data } = await axios.get(api, {
-                    timeout: API_TIMEOUT,
-                    headers: { Accept: 'application/json' },
-                    validateStatus: s => s < 500
-                });
-                picked = extractVideo(data);
-                if (picked) break;
-            } catch (e) {
-                lastErr = e.message;
-                console.error(`[fb] ${api.split('?')[0]} →`, e.message);
-            }
+        const buffer = Buffer.from(res.data, 'binary');
+        if (!buffer || buffer.length === 0) {
+            throw new Error("Empty video buffer received.");
         }
 
-        if (!picked) {
-            await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-            return reply(
-                `❌ *Video could not be found.*\n\n` +
-                `Check that the link is public and valid.\n` +
-                (lastErr ? `_${lastErr}_` : '')
-            );
-        }
-
+        // Forwarded Newsletter Message
         const caption =
-            `📥 *FACEBOOK DOWNLOAD* 📥\n\n` +
-            `📌 *Title:* ${picked.title}\n` +
-            `📝 *Desc:* ${picked.desc || 'N/A'}\n\n` +
-            `⚡ Powered by ${BOT_NAME}`;
+            `✅ *FACEBOOK VIDEO*\n\n` +
+            `⚡ *Powered by ${BOT_NAME}*\n\n` +
+            `📢 *Join our Newsletter:*\n` +
+            `${NEWSLETTER_URL}`;
 
         await conn.sendMessage(from, {
-            video: { url: picked.videoUrl },
-            caption
+            video: buffer,
+            caption: caption,
+            mimetype: 'video/mp4',
+            contextInfo: {
+                forwardingScore: 999,
+                isForwarded: true,
+                forwardedNewsletterMessageInfo: {
+                    newsletterJid: NEWSLETTER_JID,
+                    newsletterName: "Fixo API Updates",
+                    serverMessageId: -1
+                }
+            }
         }, { quoted: mek });
 
         await conn.sendMessage(from, { react: { text: '✅', key: mek.key } }).catch(() => {});
 
-    } catch (error) {
-        console.error('[fb]', error.message);
+    } catch (e) {
+        console.error('[facebook] Error:', e.message);
         await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-
-        if (error.code === 'ECONNABORTED' || error.message.includes('timeout')) {
-            return reply('⏳ *Request Timeout:* server responded too slowly. Try again.');
+        
+        let errMsg = e.message;
+        if (e.code === 'ECONNABORTED') {
+            errMsg = "API timeout. Server might be waking up. Please try again.";
         }
-        return reply('❌ *Failed to fetch the video.* Try again in a moment.');
+
+        return reply(`❌ *Error downloading Facebook video:*\n_${errMsg}_`);
     }
 });
