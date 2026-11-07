@@ -4,97 +4,101 @@ const config = require('../config');
 const { cmd } = require('../command');
 
 // ── Config ───────────────────────────────
-const BOT_NAME = "Queen Zara";
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const BOT_NAME    = "Queen Zara";
+const API_TIMEOUT = 60000; 
+const FIXO_API_KEY = config.FIXO_API_KEY;
+const NEWSLETTER_JID = "120363409660898486@newsletter";
+const NEWSLETTER_URL = "https://whatsapp.com/channel/120363409660898486";
 // ─────────────────────────────────────────
 
-// ── Try Pinterest resource endpoint ────
-async function fromPinterest(q) {
-    const url =
-        `https://www.pinterest.com/resource/BaseSearchResource/get/` +
-        `?source_url=${encodeURIComponent('/search/pins/?q=' + q)}` +
-        `&data=${encodeURIComponent(JSON.stringify({
-            options: { filters: '', page_size: 10 },
-            context: {}
-        }))}`;
-
-    const { data } = await axios.get(url, {
-        headers: { 'User-Agent': UA, Accept: 'application/json' },
-        timeout: 12000,
-        validateStatus: s => s === 200
-    });
-
-    const results = data?.resource_response?.data?.results || [];
-    const pin = results.find(r => r.images?.orig?.url || r.images?.large?.url);
-    if (!pin) return null;
-
-    return {
-        url: pin.images.orig?.url || pin.images.large?.url || pin.images.medium?.url,
-        title: pin.title || pin.grid_title || q,
-        author: pin.pinner?.full_name || 'Pinterest'
-    };
+function pickUrl(s = '') {
+    const m = String(s).match(/https?:\/\/\S+/i);
+    return m ? m[0] : '';
 }
 
-// ── Pollinations (AI image) — always works ──
-function fromPollinations(q) {
-    const prompt = q.replace(/[^\w\s]/g, ' ').trim() || 'beautiful scenery';
-    return {
-        url: `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1024&height=1024&nologo=true&seed=${Date.now()}`,
-        title: q,
-        author: 'AI Generated'
-    };
+function isPinterestUrl(url) {
+    return /(?:pinterest\.com|pin\.it)/i.test(url);
 }
 
 cmd({
-    pattern: "pinterest",
-    alias: ["pin", "pint"],
-    use: '.pinterest <search term>',
-    desc: "Search for an image on Pinterest (AI fallback)",
-    category: "search",
+    pattern: "pin",
+    alias: ["pinterest", "pindl"],
+    use: '.pin <pinterest url>',
+    desc: "Download a Pinterest video",
+    category: "download",
     react: "📌",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
 
-    const query = (q || '').trim();
-    if (!query) {
+    if (!FIXO_API_KEY) {
+        return reply('❌ *API Key Error:*\n`config.env` is missing FIXO_API_KEY.');
+    }
+
+    const url = pickUrl(q || '');
+    if (!url) {
         await conn.sendMessage(from, { react: { text: 'ℹ️', key: mek.key } }).catch(() => {});
         return reply(
-            `📌 *Pinterest Image Search*\n\n` +
-            `📌 *Usage:* .pinterest [search_term]\n\n` +
-            `📝 *Example:*\n` +
-            `.pinterest beautiful sunset`
+            `❌ *Please provide a Pinterest URL.*\n\n` +
+            `📌 *Example:*\n` +
+            `.pin https://www.pinterest.com/pin/...`
         );
+    }
+
+    if (!isPinterestUrl(url)) {
+        await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
+        return reply('❌ *Not a valid Pinterest link.*');
     }
 
     try {
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
-        let result = null;
+        // Fixo API Call (Get Video Buffer)
+        const apiUrl = `https://fixo-api-p15j.onrender.com/api/pinterest?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
+        
+        const res = await axios.get(apiUrl, {
+            responseType: 'arraybuffer',
+            timeout: API_TIMEOUT,
+            headers: { Accept: '*/*' }
+        });
 
-        // ── 1. Pinterest ────────────────────
-        try { result = await fromPinterest(query); }
-        catch (e) { console.error('[pinterest] pinterest:', e.message); }
+        const buffer = Buffer.from(res.data, 'binary');
+        if (!buffer || buffer.length === 0) {
+            throw new Error("Empty video buffer received.");
+        }
 
-        // ── 2. Pollinations fallback ────────
-        if (!result) result = fromPollinations(query);
-
+        // Forwarded Newsletter Message
         const caption =
-            `📌 *Pinterest Search Results*\n\n` +
-            `🔍 *Search:* ${query}\n` +
-            `📷 *Image:* ${result.title}\n` +
-            `👤 *Source:* ${result.author}\n\n` +
-            `⚡ Powered by ${BOT_NAME}`;
+            `✅ *PINTEREST VIDEO*\n\n` +
+            `⚡ *Powered by ${BOT_NAME}*\n\n` +
+            `📢 *Join our Newsletter:*\n` +
+            `${NEWSLETTER_URL}`;
 
         await conn.sendMessage(from, {
-            image: { url: result.url },
-            caption
+            video: buffer,
+            caption: caption,
+            mimetype: 'video/mp4',
+            contextInfo: {
+                forwardingScore: 999,
+                isForwarded: true,
+                forwardedNewsletterMessageInfo: {
+                    newsletterJid: NEWSLETTER_JID,
+                    newsletterName: "Fixo API Updates",
+                    serverMessageId: -1
+                }
+            }
         }, { quoted: mek });
 
         await conn.sendMessage(from, { react: { text: '✅', key: mek.key } }).catch(() => {});
 
     } catch (e) {
-        console.error('[pinterest]', e);
+        console.error('[pinterest] Error:', e.message);
         await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-        return reply(`❌ *Search failed:*\n_${e.message}_`);
+        
+        let errMsg = e.message;
+        if (e.code === 'ECONNABORTED') {
+            errMsg = "API timeout. Server might be waking up. Please try again.";
+        }
+
+        return reply(`❌ *Error downloading Pinterest video:*\n_${errMsg}_`);
     }
 });
