@@ -30,18 +30,12 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
 
-    if (!FIXO_API_KEY) {
-        return reply('❌ *API Key Error:*\n`config.env` is missing FIXO_API_KEY.');
-    }
+    if (!FIXO_API_KEY) return reply('❌ *API Key Error:*\n`config.env` is missing FIXO_API_KEY.');
 
     const url = pickUrl(q || '');
     if (!url) {
         await conn.sendMessage(from, { react: { text: 'ℹ️', key: mek.key } }).catch(() => {});
-        return reply(
-            `❌ *Please provide an Instagram URL.*\n\n` +
-            `📌 *Example:*\n` +
-            `.ig https://www.instagram.com/reel/...`
-        );
+        return reply(`❌ *Please provide an Instagram URL.*\n\n📌 *Example:*\n.ig https://www.instagram.com/reel/...`);
     }
 
     if (!isInstagramUrl(url)) {
@@ -52,28 +46,31 @@ cmd({
     try {
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
-        // ── Fixo API Call ─────────────────────────────
+        // 1. අපේ API එකෙන් වීඩියෝ ලින්ක් එක ගන්නවා
         const apiUrl = `https://fixo-api-p15j.onrender.com/api/instagram?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
-        
-        const res = await axios.get(apiUrl, {
-            responseType: 'arraybuffer',
-            timeout: API_TIMEOUT,
-            headers: { Accept: '*/*' }
-        });
+        const { data } = await axios.get(apiUrl, { timeout: 20000 });
 
-        const buffer = Buffer.from(res.data, 'binary');
-        if (!buffer || buffer.length === 0) {
-            throw new Error("Empty video buffer received.");
+        if (!data.success || !data.video_url) {
+            throw new Error(data.error || "Failed to get video URL from API.");
         }
 
-        // ── Caption ─────────────────────────────
+        // 2. ඒ ලින්ක් එකෙන් වීඩියෝ එක බොට් එකට බාගන්නවා
+        const videoRes = await axios.get(data.video_url, {
+            responseType: 'arraybuffer',
+            timeout: API_TIMEOUT,
+            headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
+
+        const buffer = Buffer.from(videoRes.data, 'binary');
+        if (!buffer || buffer.length === 0) throw new Error("Empty video buffer received.");
+
+        // 3. Forwarded Message එකක් විදියට යවනවා
         const caption =
             `✅ *INSTAGRAM VIDEO*\n\n` +
             `⚡ *Powered by ${BOT_NAME}*\n\n` +
             `📢 *Join our Newsletter:*\n` +
             `${NEWSLETTER_URL}`;
 
-        // ── Send as Forwarded Newsletter Message ──
         await conn.sendMessage(from, {
             video: buffer,
             caption: caption,
@@ -96,12 +93,8 @@ cmd({
         await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
         
         let errMsg = e.message;
-        if (e.code === 'ECONNABORTED') {
-            errMsg = "API timeout. Server might be waking up. Please try again.";
-        } else if (e.response && e.response.status === 500) {
-            errMsg = "Instagram blocked the download. Please try a different link.";
-        }
-
+        if (e.code === 'ECONNABORTED') errMsg = "API timeout. Server might be waking up. Please try again.";
+        
         return reply(`❌ *Error downloading Instagram video:*\n_${errMsg}_`);
     }
 });
