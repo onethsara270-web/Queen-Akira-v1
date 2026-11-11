@@ -1,113 +1,89 @@
 // plugins/mediafire.js
 const axios = require('axios');
-const cheerio = require('cheerio');
 const config = require('../config');
 const { cmd } = require('../command');
 
-// ── Config ───────────────────────────────
-const BOT_NAME = "Queen Zara";
-// ─────────────────────────────────────────
-
-const UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+const FIXO_API_KEY = config.FIXO_API_KEY;
+const NEWSLETTER_JID = "120363409660898486@newsletter";
+const NEWSLETTER_URL = "https://whatsapp.com/channel/120363409660898486";
 
 function pickUrl(s = '') {
     const m = String(s).match(/https?:\/\/\S+/i);
     return m ? m[0] : '';
 }
 
-function isMediaFire(url) {
-    return /mediafire\.com/i.test(url);
-}
-
 cmd({
     pattern: "mediafire",
     alias: ["mf", "mfdl"],
-    use: '.mediafire <mediafire link>',
+    use: '.mediafire <link>',
     desc: "Download a file from MediaFire",
     category: "download",
-    react: "📥",
+    react: "📁",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
-
+    if (!FIXO_API_KEY) return reply('❌ *API Key Error:*\n`config.env` is missing FIXO_API_KEY.');
+    
     const url = pickUrl(q || '');
-    if (!url) {
-        await conn.sendMessage(from, { react: { text: 'ℹ️', key: mek.key } }).catch(() => {});
-        return reply(
-            `❌ *Please provide a MediaFire link.*\n\n` +
-            `📌 *Example:*\n` +
-            `.mediafire https://www.mediafire.com/file/XXXXX/file.zip`
-        );
-    }
-
-    if (!isMediaFire(url)) {
-        await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-        return reply('❌ *Not a MediaFire link.*');
+    if (!url || !url.includes('mediafire.com')) {
+        return reply('❌ *Please provide a valid MediaFire link.*\n\n📌 *Example:*\n.mediafire https://www.mediafire.com/file/...');
     }
 
     try {
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
+        await reply(`📥 *Downloading file from MediaFire...*\n⏳ මේකට ටිකක් වෙලා යන්න පුළුවන්...`);
 
-        const res = await axios.get(url, {
-            headers: { 'User-Agent': UA },
-            timeout: 20000,
-            maxRedirects: 5
+        const apiUrl = `https://fixo-api-p15j.onrender.com/api/mediafire?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
+        
+        const res = await axios.get(apiUrl, {
+            responseType: 'arraybuffer',
+            timeout: 120000, // ලොකු ෆයිල්ස් නිසා වෙලාව වැඩියෙන් දෙනවා
+            maxContentLength: 100 * 1024 * 1024 // Max 100MB
         });
 
-        const $ = cheerio.load(res.data);
+        const buffer = Buffer.from(res.data, 'binary');
 
-        // ── Download URL ────────────────────
-        let downloadUrl =
-            $('#downloadButton').attr('href') ||
-            $('a.input.popsok').attr('href') ||
-            $('a[href*="download"]').first().attr('href');
-
-        if (downloadUrl && downloadUrl.startsWith('//')) {
-            downloadUrl = 'https:' + downloadUrl;
+        if (!buffer || buffer.length === 0) {
+            throw new Error("Empty file buffer received.");
         }
 
-        // ── Filename ────────────────────────
-        let fileName =
-            $('.dl-btn-label').attr('title')?.trim() ||
-            $('.promo_ss_file_name').text().trim() ||
-            $('.filename').text().trim() ||
-            '';
-
-        if (!fileName) {
-            // fall back to URL slug
-            const slug = url.split('/file/')[1]?.split('/')[1];
-            fileName = slug ? decodeURIComponent(slug) : `mediafire_${Date.now()}`;
+        // ෆයිල් එකේ නම Header එකෙන් ගන්නවා
+        let fileName = 'mediafire_file';
+        const disposition = res.headers['content-disposition'];
+        if (disposition && disposition.includes('filename=')) {
+            fileName = disposition.split('filename=')[1].replace(/["']/g, '');
         }
 
-        // ── File size ───────────────────────
-        const fileSize =
-            $('.promo_ss_file_size').text().trim() ||
-            $('.details li:nth-child(1) span').text().trim() ||
-            'Unknown';
-
-        if (!downloadUrl) {
-            await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-            return reply('❌ *Could not find the download link.*\n\nMake sure the file is public and the link is valid.');
-        }
-
-        const caption =
-            `╭━━━〔 𝗠𝗘𝗗𝗜𝗔𝗙𝗜𝗥𝗘 𝗗𝗟 〕━━━┈⊷\n` +
-            `┃ 📝 *FILE NAME:* ${fileName}\n` +
-            `┃ ⚖️ *FILE SIZE:* ${fileSize}\n` +
-            `╰━━━━━━━━━━━━━━━━━━┈⊷\n\n` +
-            `⚡ Powered by ${BOT_NAME}`;
+        const caption = 
+            `✅ *MEDIAFIRE DOWNLOAD*\n\n` +
+            `📁 *File:* ${fileName}\n` +
+            `⚡ *Powered by Queen Zara*\n\n` +
+            `📢 *Join our Newsletter:*\n` +
+            `${NEWSLETTER_URL}`;
 
         await conn.sendMessage(from, {
-            document: { url: downloadUrl },
-            mimetype: 'application/octet-stream',
-            fileName,
-            caption
+            document: buffer,
+            mimetype: res.headers['content-type'] || 'application/octet-stream',
+            fileName: fileName,
+            caption: caption,
+            contextInfo: {
+                forwardingScore: 999,
+                isForwarded: true,
+                forwardedNewsletterMessageInfo: {
+                    newsletterJid: NEWSLETTER_JID,
+                    newsletterName: "Fixo API Updates",
+                    serverMessageId: -1
+                }
+            }
         }, { quoted: mek });
 
         await conn.sendMessage(from, { react: { text: '✅', key: mek.key } }).catch(() => {});
-
     } catch (e) {
-        console.error('[mediafire]', e);
+        console.error('[mediafire] Error:', e.message);
         await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-        return reply(`❌ *Error downloading from MediaFire:*\n_${e.message}_`);
+        
+        let errMsg = e.message;
+        if (e.code === 'ECONNABORTED') errMsg = "Download timeout. File might be too large.";
+
+        return reply(`❌ *Error downloading MediaFire file:*\n_${errMsg}_`);
     }
 });
