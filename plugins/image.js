@@ -17,12 +17,11 @@ cmd({
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
     if (!FIXO_API_KEY) return reply('❌ *API Key Error:*\n`config.env` is missing FIXO_API_KEY.');
-    if (!q) return reply('❌ *Please provide a search query.*\n\n📌 *Example:*\n.img cute cats');
+    if (!q) return reply('❌ *Please provide a search query.*\n\n📌 *Example:*\n.img Mahaweli River');
 
     try {
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
-        // 1. API එකට කෝල් කරලා ලින්ක්ස් ටික ගන්නවා
         const apiUrl = `https://fixo-api-p15j.onrender.com/api/image?query=${encodeURIComponent(q)}&api_key=${FIXO_API_KEY}`;
         const { data } = await axios.get(apiUrl, { timeout: 20000 });
 
@@ -30,11 +29,11 @@ cmd({
             throw new Error("No images found for this query.");
         }
 
-        // 2. ලින්ක්ස් ටික Shuffle කරනවා (අහඹු විදියට)
+        // ලින්ක්ස් ටික Shuffle කරනවා
         const shuffled = data.images.sort(() => 0.5 - Math.random());
         let imageBuffer = null;
 
-        // 3. එකින් එක ලින්ක් ට්‍රයි කරලා බාගන්න පුළුවන් එකක් හොයනවා
+        // එකින් එක ලින්ක් ට්‍රයි කරලා, ඇත්තටම ඉමේජ් එකක්ද බලනවා
         for (const imgUrl of shuffled) {
             try {
                 const imgRes = await axios.get(imgUrl, {
@@ -45,13 +44,15 @@ cmd({
                         'Accept': 'image/*,*/*;q=0.8'
                     }
                 });
-                if (imgRes.data && imgRes.data.length > 0) {
+                
+                // ⚠️ වැදගත්: එවපු එක ඉමේජ් එකක්ද කියලා Content-Type එකෙන් බලනවා
+                const contentType = imgRes.headers['content-type'];
+                if (contentType && contentType.startsWith('image/') && imgRes.data.length > 0) {
                     imageBuffer = Buffer.from(imgRes.data, 'binary');
-                    break; // සාර්ථක නම් ලූප් එකෙන් එළියට එනවා
+                    break; // හරි ඉමේජ් එකක් හම්බුනා නම් ලූප් එකෙන් එළියට එනවා
                 }
             } catch (err) {
-                // බාගන්න බැරි නම් ඊළඟ එකට යනවා
-                continue;
+                continue; // අවුල් ගියොත් ඊළඟ එකට යනවා
             }
         }
 
@@ -59,7 +60,6 @@ cmd({
             throw new Error("Failed to download a valid image from the search results.");
         }
 
-        // 4. Forwarded Newsletter Message විදියට Photo එක යවනවා
         const caption = 
             `✅ *IMAGE SEARCH*\n\n` +
             `🔎 *Query:* ${q}\n\n` +
