@@ -27,13 +27,11 @@ cmd({
 
         const buffer = Buffer.from(res.data, 'binary');
 
-        const caption = `✅ *TEXT TO SPEECH*\n\n⚡ *Powered by Queen Zara*\n\n📢 *Join our Newsletter:*\n${NEWSLETTER_URL}`;
-
-        // Voice note එකක් විදියට (ptt: true) යවනවා
         await conn.sendMessage(from, {
             audio: buffer,
-            mimetype: 'audio/mp4',
-            ptt: true,
+            mimetype: 'audio/mpeg',
+            ptt: false, // Voice note එකක් නෙවෙයි, සාමාන්‍ය audio file එකක් විදියට යවන්න
+            fileName: 'tts.mp3',
             contextInfo: {
                 forwardingScore: 999,
                 isForwarded: true,
@@ -47,6 +45,7 @@ cmd({
 
         await conn.sendMessage(from, { react: { text: '✅', key: mek.key } }).catch(() => {});
     } catch (e) {
+        console.error('[tts] Error:', e.message);
         await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
         return reply(`❌ *Error generating TTS:*\n_${e.message}_`);
     }
