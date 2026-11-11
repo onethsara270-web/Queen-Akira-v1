@@ -24,26 +24,26 @@ cmd({
 
         const apiUrl = `https://fixo-api-p15j.onrender.com/api/apk?q=${encodeURIComponent(q)}&api_key=${FIXO_API_KEY}`;
         
-        // 1. API එකෙන් ලින්ක් එක සහ විස්තර ගන්නවා
-        const { data } = await axios.get(apiUrl, { timeout: 30000 });
-
-        if (!data.success || !data.url) {
-            throw new Error(data.error || "App not found.");
+        // validateStatus: s => s < 500 දැම්මම 404 එරර් එකත් අපිට කියවන්න පුළුවන්
+        const res = await axios.get(apiUrl, { timeout: 30000, validateStatus: s => s < 500 });
+        
+        if (!res.data.success || !res.data.url) {
+            throw new Error(res.data.error || "App not found.");
         }
 
+        const data = res.data;
         await reply(`📥 *Downloading ${data.title}...*\n⏳ මේකට ටිකක් වෙලා යන්න පුළුවන්...`);
 
-        // 2. APK ෆයිල් එක බාගන්නවා
+        // APK ෆයිල් එක බාගන්නවා
         const apkRes = await axios.get(data.url, {
             responseType: 'arraybuffer',
-            timeout: 180000, // ලොකු ෆයිල්ස් නිසා
+            timeout: 180000,
             maxContentLength: 200 * 1024 * 1024 // 200MB
         });
 
         const buffer = Buffer.from(apkRes.data, 'binary');
         if (!buffer || buffer.length === 0) throw new Error("Empty APK buffer");
 
-        // 3. Forwarded Message එකක් විදියට යවනවා
         const caption = 
             `✅ *APK DOWNLOADED*\n\n` +
             `📱 *App:* ${data.title}\n` +
