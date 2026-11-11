@@ -36,8 +36,8 @@ cmd({
         
         const res = await axios.get(apiUrl, {
             responseType: 'arraybuffer',
-            timeout: 120000, // ලොකු ෆයිල්ස් නිසා වෙලාව වැඩියෙන් දෙනවා
-            maxContentLength: 100 * 1024 * 1024 // Max 100MB
+            timeout: 180000, // ලොකු ෆයිල්ස් නිසා තත්පර 180ක් දෙනවා
+            maxContentLength: 200 * 1024 * 1024 // Max 200MB
         });
 
         const buffer = Buffer.from(res.data, 'binary');
@@ -50,7 +50,7 @@ cmd({
         let fileName = 'mediafire_file';
         const disposition = res.headers['content-disposition'];
         if (disposition && disposition.includes('filename=')) {
-            fileName = disposition.split('filename=')[1].replace(/["']/g, '');
+            fileName = decodeURIComponent(disposition.split('filename=')[1].replace(/["']/g, ''));
         }
 
         const caption = 
