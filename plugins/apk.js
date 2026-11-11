@@ -23,8 +23,6 @@ cmd({
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
         const apiUrl = `https://fixo-api-p15j.onrender.com/api/apk?q=${encodeURIComponent(q)}&api_key=${FIXO_API_KEY}`;
-        
-        // validateStatus: s => s < 500 දැම්මම 404 එරර් එකත් අපිට කියවන්න පුළුවන්
         const res = await axios.get(apiUrl, { timeout: 30000, validateStatus: s => s < 500 });
         
         if (!res.data.success || !res.data.url) {
@@ -34,7 +32,7 @@ cmd({
         const data = res.data;
         await reply(`📥 *Downloading ${data.title}...*\n⏳ මේකට ටිකක් වෙලා යන්න පුළුවන්...`);
 
-        // APK ෆයිල් එක බාගන්නවා
+        // APK එක බාගන්නවා
         const apkRes = await axios.get(data.url, {
             responseType: 'arraybuffer',
             timeout: 180000,
@@ -47,7 +45,6 @@ cmd({
         const caption = 
             `✅ *APK DOWNLOADED*\n\n` +
             `📱 *App:* ${data.title}\n` +
-            `👨‍💻 *Developer:* ${data.developer}\n\n` +
             `⚡ *Powered by Queen Zara*\n\n` +
             `📢 *Join our Newsletter:*\n` +
             `${NEWSLETTER_URL}`;
