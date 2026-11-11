@@ -26,7 +26,7 @@ cmd({
         const { data } = await axios.get(apiUrl, { timeout: 20000 });
 
         if (!data.success || !data.images || data.images.length === 0) {
-            throw new Error("No images found for this query.");
+            throw new Error(data.error || "No images found for this query.");
         }
 
         // ලින්ක්ස් ටික Shuffle කරනවා
