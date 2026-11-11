@@ -1,6 +1,7 @@
 // plugins/sticker.js
 const axios = require('axios');
 const FormData = require('form-data');
+const { Sticker, StickerTypes } = require('wa-sticker-formatter'); // අලුත් පැකේජ් එක
 const config = require('../config');
 const { cmd } = require('../command');
 
@@ -27,7 +28,7 @@ cmd({
     try {
         let mediaMsg = null;
 
-        // 1. කෙලින්ම එවපු ඉමේජ් එකක්ද බලනවා (Caption එක්ක)
+        // 1. කෙලින්ම එවපු ඉමේජ් එකක්ද බලනවා
         const isDirectImage = mek.mtype === 'imageMessage' || mek.message?.imageMessage;
         
         // 2. රිප්ලයි කරපු ඉමේජ් එකක්ද බලනවා
@@ -37,7 +38,6 @@ cmd({
         if (isDirectImage) {
             mediaMsg = mek;
         } else if (isQuotedImage) {
-            // රිප්ලයි කරපු එක නම් ඒක හරියට Format කරගන්නවා
             mediaMsg = m.quoted || { message: quotedMsg };
         }
 
@@ -47,7 +47,7 @@ cmd({
 
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
-        // 3. ඉමේජ් එක ඩවුන්ලෝඩ් කරගන්නවා (Framework එකට ගැලපෙන විදියට)
+        // 3. ඉමේජ් එක ඩවුන්ලෝඩ් කරගන්නවා
         let buffer;
         try {
             if (mediaMsg.download) {
@@ -61,35 +61,37 @@ cmd({
 
         if (!buffer) throw new Error("Media buffer is empty");
 
-        // 4. Fixo API එකට යවන්න FormData එකක් හදනවා
+        // 4. Fixo API එකට යවන්න FormData එකක් හදනවා (WebP එකක් ගන්නවා)
         const form = new FormData();
         form.append('image', buffer, { filename: 'image.jpg', contentType: 'image/jpeg' });
 
         const apiUrl = `https://fixo-api-p15j.onrender.com/api/sticker?api_key=${FIXO_API_KEY}`;
         
         const res = await axios.post(apiUrl, form, {
-            headers: {
-                ...form.getHeaders(),
-            },
+            headers: { ...form.getHeaders() },
             responseType: 'arraybuffer',
             timeout: API_TIMEOUT
         });
 
-        const stickerBuffer = Buffer.from(res.data, 'binary');
+        const webpBuffer = Buffer.from(res.data, 'binary');
 
-        if (!stickerBuffer || stickerBuffer.length === 0) {
-            throw new Error("Empty sticker buffer received.");
+        if (!webpBuffer || webpBuffer.length === 0) {
+            throw new Error("Empty sticker buffer received from API.");
         }
 
-        // 5. Forwarded Newsletter Message එකක් විදියට Sticker එක යවනවා
-        const caption =
-            `✅ *STICKER CREATED*\n\n` +
-            `⚡ *Powered by ${BOT_NAME}*\n\n` +
-            `📢 *Join our Newsletter:*\n` +
-            `${NEWSLETTER_URL}`;
+        // 5. අලුත් පැකේජ් එකෙන් EXIF Data (Pack Name) එක දානවා
+        const sticker = new Sticker(webpBuffer, {
+            pack: "Queen Zara 🧚",      // ⬅️ මෙතන තමයි යටින් පේන නම වෙනස් වෙන්නේ
+            author: "Fixo Dev",       // ⬅️ Pack එකේ Author ගේ නම
+            type: StickerTypes.FULL,
+            quality: 90
+        });
 
+        const finalStickerBuffer = await sticker.toBuffer();
+
+        // 6. Sticker එක යවනවා
         await conn.sendMessage(from, {
-            sticker: stickerBuffer,
+            sticker: finalStickerBuffer,
             contextInfo: {
                 forwardingScore: 999,
                 isForwarded: true,
