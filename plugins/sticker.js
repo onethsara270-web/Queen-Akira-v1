@@ -20,34 +20,48 @@ cmd({
     category: "utility",
     react: "🎨",
     filename: __filename
-}, async (conn, mek, m, { from, reply, isMedia, quoted, mime }) => {
+}, async (conn, mek, m, { from, reply }) => {
 
     if (!FIXO_API_KEY) return reply('❌ *API Key Error:*\n`config.env` is missing FIXO_API_KEY.');
 
     try {
-        // 1. ඉමේජ් එකක්ද කියලා චෙක් කරනවා (reply කරපු එක හෝ කෙලින්ම එවපු එක)
-        let isImage = false;
         let mediaMsg = null;
 
-        if (isMedia && /image/.test(mime)) {
-            isImage = true;
+        // 1. කෙලින්ම එවපු ඉමේජ් එකක්ද බලනවා (Caption එක්ක)
+        const isDirectImage = mek.mtype === 'imageMessage' || mek.message?.imageMessage;
+        
+        // 2. රිප්ලයි කරපු ඉමේජ් එකක්ද බලනවා
+        const quotedMsg = mek.message?.extendedTextMessage?.contextInfo?.quotedMessage;
+        const isQuotedImage = quotedMsg && quotedMsg.imageMessage;
+
+        if (isDirectImage) {
             mediaMsg = mek;
-        } else if (quoted && quoted.mtype === 'imageMessage') {
-            isImage = true;
-            mediaMsg = quoted;
+        } else if (isQuotedImage) {
+            // රිප්ලයි කරපු එක නම් ඒක හරියට Format කරගන්නවා
+            mediaMsg = m.quoted || { message: quotedMsg };
         }
 
-        if (!isImage) {
+        if (!mediaMsg) {
             return reply(`❌ *Please reply to an image or send an image with the caption.*\n\n📌 *Example:*\n.sticker`);
         }
 
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
-        // 2. WhatsApp එකෙන් ඉමේජ් එක ඩවුන්ලෝඩ් කරගන්නවා
-        const stream = await conn.downloadMediaMessage(mediaMsg);
-        const buffer = Buffer.from(stream);
+        // 3. ඉමේජ් එක ඩවුන්ලෝඩ් කරගන්නවා (Framework එකට ගැලපෙන විදියට)
+        let buffer;
+        try {
+            if (mediaMsg.download) {
+                buffer = await mediaMsg.download();
+            } else {
+                buffer = await conn.downloadMediaMessage(mediaMsg);
+            }
+        } catch (err) {
+            throw new Error("Failed to download media from WhatsApp");
+        }
 
-        // 3. Fixo API එකට යවන්න FormData එකක් හදනවා
+        if (!buffer) throw new Error("Media buffer is empty");
+
+        // 4. Fixo API එකට යවන්න FormData එකක් හදනවා
         const form = new FormData();
         form.append('image', buffer, { filename: 'image.jpg', contentType: 'image/jpeg' });
 
@@ -67,7 +81,7 @@ cmd({
             throw new Error("Empty sticker buffer received.");
         }
 
-        // 4. Forwarded Newsletter Message එකක් විදියට Sticker එක යවනවා
+        // 5. Forwarded Newsletter Message එකක් විදියට Sticker එක යවනවා
         const caption =
             `✅ *STICKER CREATED*\n\n` +
             `⚡ *Powered by ${BOT_NAME}*\n\n` +
