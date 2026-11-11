@@ -3,87 +3,75 @@ const axios = require('axios');
 const config = require('../config');
 const { cmd } = require('../command');
 
-// ── Branding ──────────────────────────────
-const BOT_NAME       = "Queen Zara";
+const FIXO_API_KEY = config.FIXO_API_KEY;
 const NEWSLETTER_JID = "120363409660898486@newsletter";
-// ──────────────────────────────────────────
+const NEWSLETTER_URL = "https://whatsapp.com/channel/120363409660898486";
 
 cmd({
     pattern: "apk",
-    alias: ["apkdl", "getapk", "downloadapk"],
+    alias: ["app", "apkdl"],
     use: '.apk <app name>',
-    desc: "Search & download APK from Aptoide",
+    desc: "Download an APK from Play Store",
     category: "download",
-    react: "⬇️",
+    react: "📱",
     filename: __filename
-}, async (conn, mek, m, { from, q, reply, isGroup, sender }) => {
-
-    const query = (q || '').trim();
-
-    if (!query) {
-        return reply("🔍 *කරුණාකර app එකේ නම ඇතුළත් කරන්න.*\n\n_උදා:_\n.apk Instagram");
-    }
+}, async (conn, mek, m, { from, q, reply }) => {
+    if (!FIXO_API_KEY) return reply('❌ *API Key Error:*\n`config.env` is missing FIXO_API_KEY.');
+    if (!q) return reply('❌ *Please provide an app name.*\n\n📌 *Example:*\n.apk whatsapp');
 
     try {
-        await conn.sendMessage(from, { react: { text: "⬇️", key: mek.key } });
+        await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
-        const apiUrl = `https://ws75.aptoide.com/api/7/apps/search?query=${encodeURIComponent(query)}&limit=1`;
-        const { data } = await axios.get(apiUrl, { timeout: 20000 });
+        const apiUrl = `https://fixo-api-p15j.onrender.com/api/apk?q=${encodeURIComponent(q)}&api_key=${FIXO_API_KEY}`;
+        
+        // 1. API එකෙන් ලින්ක් එක සහ විස්තර ගන්නවා
+        const { data } = await axios.get(apiUrl, { timeout: 30000 });
 
-        const app = data?.datalist?.list?.[0];
-
-        if (!app) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ *ඔබගේ සෙවීමට ගැලපෙන APK එකක් හමු නොවීය.*");
+        if (!data.success || !data.url) {
+            throw new Error(data.error || "App not found.");
         }
 
-        const fileUrl = app.file?.path_alt || app.file?.path;
-        if (!fileUrl) {
-            await conn.sendMessage(from, { react: { text: "❌", key: mek.key } });
-            return reply("❌ *මේ app එකට බාගත කළ හැකි APK file එකක් නැහැ.*");
-        }
+        await reply(`📥 *Downloading ${data.title}...*\n⏳ මේකට ටිකක් වෙලා යන්න පුළුවන්...`);
 
-        const bytes   = Number(app.size || app.file?.filesize || 0);
-        const sizeMB  = bytes ? (bytes / (1024 * 1024)).toFixed(2) : "?";
-        const updated = (app.updated || app.added || "").split(" ")[0] || "?";
+        // 2. APK ෆයිල් එක බාගන්නවා
+        const apkRes = await axios.get(data.url, {
+            responseType: 'arraybuffer',
+            timeout: 180000, // ලොකු ෆයිල්ස් නිසා
+            maxContentLength: 200 * 1024 * 1024 // 200MB
+        });
 
-        const caption = `
-🎮 *App Name:* ${app.name}
-📦 *Package:* ${app.package}
-📅 *Last Updated:* ${updated}
-📁 *Size:* ${sizeMB} MB
+        const buffer = Buffer.from(apkRes.data, 'binary');
+        if (!buffer || buffer.length === 0) throw new Error("Empty APK buffer");
 
-> > ᴘᴏᴡᴇʀᴇᴅ ʙʏ ${BOT_NAME} 🔥
-        `.trim();
-
-        await conn.sendMessage(from, { react: { text: "⬆️", key: mek.key } });
-
-        const contextInfo = {
-            mentionedJid: [sender],
-            forwardingScore: 999,
-            isForwarded: true
-        };
-        if (!isGroup) {
-            contextInfo.forwardedNewsletterMessageInfo = {
-                newsletterJid: NEWSLETTER_JID,
-                newsletterName: BOT_NAME,
-                serverMessageId: 143
-            };
-        }
+        // 3. Forwarded Message එකක් විදියට යවනවා
+        const caption = 
+            `✅ *APK DOWNLOADED*\n\n` +
+            `📱 *App:* ${data.title}\n` +
+            `👨‍💻 *Developer:* ${data.developer}\n\n` +
+            `⚡ *Powered by Queen Zara*\n\n` +
+            `📢 *Join our Newsletter:*\n` +
+            `${NEWSLETTER_URL}`;
 
         await conn.sendMessage(from, {
-            document: { url: fileUrl },
-            fileName: `${app.name}.apk`,
+            document: buffer,
             mimetype: 'application/vnd.android.package-archive',
-            caption,
-            contextInfo
+            fileName: `${data.title.replace(/[^\w\s-]/g, '')}.apk`,
+            caption: caption,
+            contextInfo: {
+                forwardingScore: 999,
+                isForwarded: true,
+                forwardedNewsletterMessageInfo: {
+                    newsletterJid: NEWSLETTER_JID,
+                    newsletterName: "Fixo API Updates",
+                    serverMessageId: -1
+                }
+            }
         }, { quoted: mek });
 
-        await conn.sendMessage(from, { react: { text: "✅", key: mek.key } });
-
+        await conn.sendMessage(from, { react: { text: '✅', key: mek.key } }).catch(() => {});
     } catch (e) {
-        console.error("[apk]", e);
-        await conn.sendMessage(from, { react: { text: "❌", key: mek.key } }).catch(() => {});
-        return reply(`❌ *APK බාගත කිරීමේදී දෝෂයක් ඇති විය.*\n\n_${e.message}_`);
+        console.error('[apk] Error:', e.message);
+        await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
+        return reply(`❌ *Error downloading APK:*\n_${e.message}_`);
     }
 });
