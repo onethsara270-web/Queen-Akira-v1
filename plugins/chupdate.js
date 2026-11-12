@@ -1,5 +1,5 @@
 // plugins/chupdate.js
-const { downloadContentFromMessage } = require('@whiskeysockets/baileys');
+const { downloadContentFromMessage } = require('fixo-baileys');
 const config = require('../config');
 const { cmd } = require('../command');
 
