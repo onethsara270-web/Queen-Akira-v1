@@ -32,19 +32,26 @@ cmd({
         const data = res.data;
         await reply(`📥 *Downloading ${data.title}...*\n⏳ මේකට ටිකක් වෙලා යන්න පුළුවන්...`);
 
-        // APK එක බාගන්නවා
+        // APK එක බාගන්නවා (APKPure ලින්ක් එකෙන්)
         const apkRes = await axios.get(data.url, {
             responseType: 'arraybuffer',
             timeout: 180000,
-            maxContentLength: 200 * 1024 * 1024 // 200MB
+            maxContentLength: 200 * 1024 * 1024, // 200MB
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+            }
         });
 
         const buffer = Buffer.from(apkRes.data, 'binary');
-        if (!buffer || buffer.length === 0) throw new Error("Empty APK buffer");
+        if (!buffer || buffer.length === 0) throw new Error("Empty APK buffer received.");
+
+        // ෆයිල් එකේ නම හදාගන්නවා (ඇප් එකේ නමින්)
+        const safeName = (data.title || 'app').replace(/[^\w\s-]/g, '').trim() || 'app';
 
         const caption = 
             `✅ *APK DOWNLOADED*\n\n` +
             `📱 *App:* ${data.title}\n` +
+            `📦 *Package:* ${data.package}\n\n` +
             `⚡ *Powered by Queen Zara*\n\n` +
             `📢 *Join our Newsletter:*\n` +
             `${NEWSLETTER_URL}`;
@@ -52,7 +59,7 @@ cmd({
         await conn.sendMessage(from, {
             document: buffer,
             mimetype: 'application/vnd.android.package-archive',
-            fileName: `${data.title.replace(/[^\w\s-]/g, '')}.apk`,
+            fileName: `${safeName}.apk`,
             caption: caption,
             contextInfo: {
                 forwardingScore: 999,
