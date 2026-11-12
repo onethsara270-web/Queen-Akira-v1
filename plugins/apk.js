@@ -11,7 +11,7 @@ cmd({
     pattern: "apk",
     alias: ["app", "apkdl"],
     use: '.apk <app name>',
-    desc: "Download an APK from Play Store",
+    desc: "Download an APK",
     category: "download",
     react: "📱",
     filename: __filename
@@ -30,9 +30,9 @@ cmd({
         }
 
         const data = res.data;
-        await reply(`📥 *Downloading ${data.title}...*\n⏳ මේකට ටිකක් වෙලා යන්න පුළුවන්...`);
+        await reply(`📥 *Downloading ${data.title}...*\n📁 Size: ${data.size}\n⏳ Please wait...`);
 
-        // APK එක බාගන්නවා (APKPure ලින්ක් එකෙන්)
+        // APK එක බාගන්නවා
         const apkRes = await axios.get(data.url, {
             responseType: 'arraybuffer',
             timeout: 180000,
@@ -45,13 +45,14 @@ cmd({
         const buffer = Buffer.from(apkRes.data, 'binary');
         if (!buffer || buffer.length === 0) throw new Error("Empty APK buffer received.");
 
-        // ෆයිල් එකේ නම හදාගන්නවා (ඇප් එකේ නමින්)
+        // ඇප් එකේ නමින් ෆයිල් එක හදනවා
         const safeName = (data.title || 'app').replace(/[^\w\s-]/g, '').trim() || 'app';
 
         const caption = 
             `✅ *APK DOWNLOADED*\n\n` +
             `📱 *App:* ${data.title}\n` +
-            `📦 *Package:* ${data.package}\n\n` +
+            `📦 *Package:* ${data.package}\n` +
+            `📁 *Size:* ${data.size}\n\n` +
             `⚡ *Powered by Queen Zara*\n\n` +
             `📢 *Join our Newsletter:*\n` +
             `${NEWSLETTER_URL}`;
