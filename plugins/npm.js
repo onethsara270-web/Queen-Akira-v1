@@ -3,121 +3,63 @@ const axios = require('axios');
 const config = require('../config');
 const { cmd } = require('../command');
 
-// ── Config ───────────────────────────────
-const BOT_NAME = "Queen Zara";
-// ─────────────────────────────────────────
+const FIXO_API_KEY = config.FIXO_API_KEY;
+const NEWSLETTER_JID = "120363409660898486@newsletter";
+const NEWSLETTER_URL = "https://whatsapp.com/channel/120363409660898486";
 
 cmd({
     pattern: "npm",
-    alias: ["npmpkg", "npminfo"],
-    use: '.npm <package name>',
-    desc: "Lookup npm package information",
-    category: "tools",
+    alias: ["npmv", "npmsearch"],
+    use: '.npm <package>',
+    desc: "Check NPM package details",
+    category: "utility",
     react: "📦",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
-
-    const pkgName = (q || '').trim().split(/\s+/)[0];
-    if (!pkgName) {
-        await conn.sendMessage(from, { react: { text: 'ℹ️', key: mek.key } }).catch(() => {});
-        return reply(
-            `📦 *NPM Package Lookup*\n\n` +
-            `📌 *Usage:* .npm [package_name]\n\n` +
-            `📝 *Example:*\n` +
-            `.npm express`
-        );
-    }
+    if (!FIXO_API_KEY) return reply('❌ *API Key Error:*\n`config.env` is missing FIXO_API_KEY.');
+    if (!q) return reply('❌ *Please provide a package name.*\n\n📌 *Example:*\n.npm express');
 
     try {
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
-        const { data: pkg } = await axios.get(
-            `https://registry.npmjs.org/${encodeURIComponent(pkgName)}`,
-            {
-                timeout: 15000,
-                headers: { 'User-Agent': `${BOT_NAME}-Bot/1.0` },
-                validateStatus: s => s === 200 || s === 404
+        const apiUrl = `https://fixo-api-p15j.onrender.com/api/npm?q=${encodeURIComponent(q)}&api_key=${FIXO_API_KEY}`;
+        const res = await axios.get(apiUrl, { timeout: 20000, validateStatus: s => s < 500 });
+        
+        if (!res.data.success) {
+            throw new Error(res.data.error || "Package not found.");
+        }
+
+        const data = res.data;
+
+        const caption = 
+            `📦 *NPM PACKAGE INFO*\n\n` +
+            `📝 *Name:* ${data.name}\n` +
+            `ℹ️ *Description:* ${data.description}\n` +
+            `👨‍💻 *Author:* ${data.author}\n\n` +
+            `🚀 *Latest Version:* ${data.latest}\n` +
+            `🔢 *Total Versions:* ${data.totalVersions}\n\n` +
+            `🕒 *Recent Versions:*\n${data.versions.map(v => `• ${v}`).join('\n')}\n\n` +
+            `⚡ *Powered by Queen Zara*\n\n` +
+            `📢 *Join our Newsletter:*\n` +
+            `${NEWSLETTER_URL}`;
+
+        await conn.sendMessage(from, {
+            text: caption,
+            contextInfo: {
+                forwardingScore: 999,
+                isForwarded: true,
+                forwardedNewsletterMessageInfo: {
+                    newsletterJid: NEWSLETTER_JID,
+                    newsletterName: "Fixo API Updates",
+                    serverMessageId: -1
+                }
             }
-        );
+        }, { quoted: mek });
 
-        if (!pkg || !pkg.name) {
-            await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-            return reply(`❌ *Package not found:* "${pkgName}"\n\nCheck the name and try again.`);
-        }
-
-        const latest = pkg['dist-tags']?.latest || 'N/A';
-        const info   = pkg.versions?.[latest] || {};
-
-        // ── Author ──────────────────────────
-        let author = 'N/A';
-        if (pkg.author) {
-            author = typeof pkg.author === 'string'
-                ? pkg.author
-                : (pkg.author.name || 'N/A');
-        } else if (info.author) {
-            author = typeof info.author === 'string'
-                ? info.author
-                : (info.author.name || 'N/A');
-        }
-
-        // ── Repository ──────────────────────
-        let repo = null;
-        if (pkg.repository) {
-            const raw = typeof pkg.repository === 'string'
-                ? pkg.repository
-                : (pkg.repository.url || '');
-            repo = raw.replace(/^git\+/, '').replace(/\.git$/, '');
-        }
-
-        // ── Build message ───────────────────
-        const lines = [
-            `📦 *NPM PACKAGE INFO*`,
-            ``,
-            `📌 *Name:* ${pkg.name}`,
-            `📌 *Version:* ${latest}`,
-            `📌 *Description:* ${pkg.description || 'N/A'}`,
-            `👤 *Author:* ${author}`,
-            `📜 *License:* ${pkg.license || info.license || 'N/A'}`
-        ];
-
-        if (pkg.homepage) lines.push(`🌐 *Homepage:* ${pkg.homepage}`);
-        if (repo)         lines.push(`📂 *Repository:* ${repo}`);
-        if (pkg.time?.modified) {
-            lines.push(`📅 *Last Modified:* ${new Date(pkg.time.modified).toLocaleDateString()}`);
-        }
-        lines.push(`📊 *NPM Page:* https://www.npmjs.com/package/${pkg.name}`);
-        lines.push('');
-
-        const kw = info.keywords || [];
-        if (kw.length) {
-            lines.push(`🏷️ *Keywords:* ${kw.slice(0, 5).join(', ')}${kw.length > 5 ? '...' : ''}`);
-            lines.push('');
-        }
-
-        const deps = Object.keys(info.dependencies || {});
-        if (deps.length) {
-            lines.push(`📦 *Dependencies:* ${deps.slice(0, 5).join(', ')}${deps.length > 5 ? '...' : ''}`);
-            lines.push('');
-        }
-
-        lines.push(`📥 *Install:*`);
-        lines.push(`\`npm install ${pkg.name}\``);
-        lines.push('');
-        lines.push(`🔧 *Dev Install:*`);
-        lines.push(`\`npm install --save-dev ${pkg.name}\``);
-        lines.push('');
-        lines.push(`⚡ Powered by ${BOT_NAME}`);
-
-        await reply(lines.join('\n'));
         await conn.sendMessage(from, { react: { text: '✅', key: mek.key } }).catch(() => {});
-
-    } catch (error) {
-        console.error('[npm]', error.message);
+    } catch (e) {
+        console.error('[npm] Error:', e.message);
         await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-
-        if (error.response?.status === 404) {
-            return reply(`❌ *Package not found:* "${pkgName}"`);
-        }
-        return reply(`❌ *Error fetching package:*\n_${error.message}_`);
+        return reply(`❌ *Error fetching NPM package:*\n_${e.message}_`);
     }
 });
