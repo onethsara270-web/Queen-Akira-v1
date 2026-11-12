@@ -1,98 +1,73 @@
 // plugins/base64.js
+const axios = require('axios');
 const config = require('../config');
 const { cmd } = require('../command');
 
-// ── Branding ──────────────────────────────
-const BOT_NAME = "Queen Zara";
-// ──────────────────────────────────────────
+const FIXO_API_KEY = config.FIXO_API_KEY;
+const NEWSLETTER_JID = "120363409660898486@newsletter";
+const NEWSLETTER_URL = "https://whatsapp.com/channel/120363409660898486";
 
 cmd({
     pattern: "base64",
-    alias: ["b64", "encode", "decode"],
-    use: '.base64 enc <text> | .base64 dec <base64>',
-    desc: "Encode or decode Base64 text",
-    category: "tools",
+    alias: ["b64"],
+    use: '.base64 <enc/dec> <text>',
+    desc: "Encode or Decode Base64",
+    category: "utility",
     react: "🔐",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
+    if (!FIXO_API_KEY) return reply('❌ *API Key Error:*\n`config.env` is missing FIXO_API_KEY.');
+    
+    const args = (q || '').trim().split(' ');
+    if (args.length < 2 || !['enc', 'dec', 'encode', 'decode'].includes(args[0].toLowerCase())) {
+        return reply(
+            `❌ *Please provide text to encode/decode!*\n\n` +
+            `📌 *Example:*\n` +
+            `.base64 enc Hello World\n` +
+            `.base64 dec SGVsbG8gV29ybGQ=`
+        );
+    }
 
-    const args = (q || '').trim().split(/\s+/);
-    const action = (args[0] || '').toLowerCase();
-    const text   = args.slice(1).join(' ');
+    const action = args[0].toLowerCase().startsWith('e') ? 'encode' : 'decode';
+    const textToProcess = args.slice(1).join(' ');
 
     try {
-        // ── No args ──────────────────────────
-        if (!q) {
-            return reply(
-                `⚠️ *Usage:*\n` +
-                `.base64 enc Hello World\n` +
-                `.base64 dec SGVsbG8gV29ybGQ=\n\n` +
-                `📌 *Example:*\n` +
-                `.base64 enc Hello World`
-            );
+        await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
+
+        const apiUrl = `https://fixo-api-p15j.onrender.com/api/base64?text=${encodeURIComponent(textToProcess)}&action=${action}&api_key=${FIXO_API_KEY}`;
+        const res = await axios.get(apiUrl, { timeout: 20000, validateStatus: s => s < 500 });
+        
+        if (!res.data.success) {
+            throw new Error(res.data.error || "Failed to process Base64.");
         }
 
-        if (!text) {
-            return reply(
-                '❌ *Please provide text to encode/decode!*\n\n' +
-                `Example:\n` +
-                `.base64 enc Hello World\n` +
-                `.base64 dec SGVsbG8gV29ybGQ=`
-            );
-        }
+        const data = res.data;
 
-        // ── Encode ───────────────────────────
-        if (action === 'enc' || action === 'encode') {
-            const result = Buffer.from(text).toString('base64');
+        const caption = 
+            `🔐 *BASE64 ${data.action.toUpperCase()}*\n\n` +
+            `📝 *Input:*\n${data.original}\n\n` +
+            `✅ *Result:*\n${data.result}\n\n` +
+            `⚡ *Powered by Queen Zara*\n\n` +
+            `📢 *Join our Newsletter:*\n` +
+            `${NEWSLETTER_URL}`;
 
-            await reply(
-                `🔐 *BASE64 ENCODER* 🔐\n\n` +
-                `📝 *Original:*\n${text}\n\n` +
-                `🔒 *Encoded:*\n\`${result}\`\n\n` +
-                `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-                `⚡ Powered by ${BOT_NAME}`
-            );
-
-            await conn.sendMessage(from, { react: { text: '✅', key: mek.key } }).catch(() => {});
-            return;
-        }
-
-        // ── Decode ───────────────────────────
-        if (action === 'dec' || action === 'decode') {
-            // Base64 වලට වලංගු අකුරු පමණක් ද බලනවා
-            if (!/^[A-Za-z0-9+/=\s]+$/.test(text)) {
-                await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-                return reply('❌ *Invalid Base64 string!*\n\nPlease check your input and try again.');
+        await conn.sendMessage(from, {
+            text: caption,
+            contextInfo: {
+                forwardingScore: 999,
+                isForwarded: true,
+                forwardedNewsletterMessageInfo: {
+                    newsletterJid: NEWSLETTER_JID,
+                    newsletterName: "Fixo API Updates",
+                    serverMessageId: -1
+                }
             }
+        }, { quoted: mek });
 
-            const result = Buffer.from(text, 'base64').toString('utf8');
-
-            await reply(
-                `🔓 *BASE64 DECODER* 🔓\n\n` +
-                `🔒 *Encoded:*\n${text}\n\n` +
-                `📝 *Decoded:*\n\`${result}\`\n\n` +
-                `━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n` +
-                `⚡ Powered by ${BOT_NAME}`
-            );
-
-            await conn.sendMessage(from, { react: { text: '✅', key: mek.key } }).catch(() => {});
-            return;
-        }
-
-        // ── Invalid action ───────────────────
-        return reply(
-            `⚠️ *Invalid action!*\n\n` +
-            `*Usage:*\n` +
-            `.base64 enc Hello World\n` +
-            `.base64 dec SGVsbG8gV29ybGQ=\n\n` +
-            `*Actions:*\n` +
-            `• enc / encode - Encode text to Base64\n` +
-            `• dec / decode - Decode Base64 to text`
-        );
-
-    } catch (error) {
-        console.error('[base64]', error);
+        await conn.sendMessage(from, { react: { text: '✅', key: mek.key } }).catch(() => {});
+    } catch (e) {
+        console.error('[base64] Error:', e.message);
         await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-        return reply(`❌ *Error:* ${error.message}`);
+        return reply(`❌ *Error processing Base64:*\n_${e.message}_`);
     }
 });
