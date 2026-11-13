@@ -3,7 +3,6 @@ const fs = require('fs');
 const path = require('path');
 const { AsyncLocalStorage } = require('async_hooks');
 
-// config.env එකේ තියෙන දේවල් load කරගන්නවා
 if (fs.existsSync('config.env')) require('dotenv').config({ path: './config.env' });
 
 const DATA_DIR = process.env.DATA_DIR || __dirname;
@@ -44,9 +43,6 @@ function get(key, defaultValue) {
     return defaultValue;
 }
 
-// ══════════════════════════════════════════════════════════════
-// 🏗️ BASE CONFIG — හැම සෙටින්ග් එකක්ම මෙතන
-// ══════════════════════════════════════════════════════════════
 const baseConfig = {
     // ─── BOT CORE ───
     SESSION_ID: process.env.SESSION_ID || get('SESSION_ID', ""),
@@ -117,10 +113,10 @@ const baseConfig = {
     MONGODB_URI: process.env.MONGODB_URI || get('MONGODB_URI', 'mongodb+srv://fixodev1_db_user:tYaX69ozKljm0Eha@cluster0.t8xf96n.mongodb.net/adcash_lk?appName=Cluster0'),
     MONGODB_DB_NAME: process.env.MONGODB_DB_NAME || get('MONGODB_DB_NAME', 'adcash_lk'),
 
-    // ✅ NEW: BOOST SETTINGS
+    // ✅ NEW: BOOST SETTINGS (Delay වැඩි කරලා තියෙනවා)
     BOOST_ENABLED: get('BOOST_ENABLED', 'true'),
-    BOOST_MIN_DELAY_MS: get('BOOST_MIN_DELAY_MS', '1500'),
-    BOOST_MAX_DELAY_MS: get('BOOST_MAX_DELAY_MS', '4000'),
+    BOOST_MIN_DELAY_MS: get('BOOST_MIN_DELAY_MS', '15000'), // තත්පර 15
+    BOOST_MAX_DELAY_MS: get('BOOST_MAX_DELAY_MS', '25000'), // තත්පර 25
     BOOST_AUTO_REVERT_HOURS: get('BOOST_AUTO_REVERT_HOURS', '24')
 };
 
@@ -128,18 +124,9 @@ console.log('🔑 SESSION_ID:', baseConfig.SESSION_ID ? 'loaded' : 'not set (pai
 console.log('⚙️ PREFIX:', baseConfig.PREFIX);
 console.log('🛡️ ANTI_LINK:', baseConfig.ANTI_LINK_ENABLED, '| action:', baseConfig.ANTI_LINK_ACTION);
 console.log('🚀 BOOST:', baseConfig.BOOST_ENABLED, '| delay:', baseConfig.BOOST_MIN_DELAY_MS + '-' + baseConfig.BOOST_MAX_DELAY_MS + 'ms');
-if(baseConfig.CHANNEL_LINK) console.log('📢 Channel Link Loaded:', baseConfig.CHANNEL_LINK);
-if(baseConfig.CHANNEL_LINKS) console.log('📢 Extra Channel Links Loaded:', baseConfig.CHANNEL_LINKS);
-if(baseConfig.GROUP_LINK) console.log('👥 Group Link Loaded:', baseConfig.GROUP_LINK);
 
-// ══════════════════════════════════════════════════════════════
-// 🎯 PER-BOT CONTEXT (AsyncLocalStorage)
-// ══════════════════════════════════════════════════════════════
 const botStore = new AsyncLocalStorage();
 
-// ══════════════════════════════════════════════════════════════
-// 🔮 PROXY
-// ══════════════════════════════════════════════════════════════
 const configProxy = new Proxy(baseConfig, {
     get(target, prop) {
         if (prop === '_base') return baseConfig;
@@ -175,9 +162,6 @@ const configProxy = new Proxy(baseConfig, {
     }
 });
 
-// ══════════════════════════════════════════════════════════════
-// 🔧 HELPERS
-// ══════════════════════════════════════════════════════════════
 function reloadConfig() {
     try {
         if (!fs.existsSync(CONFIG_PATH)) return false;
@@ -216,17 +200,13 @@ function withBotConfig(botConfig, fn) {
     return botStore.run({ botConfig: botConfig || {} }, fn);
 }
 
-function setBotConfig(conn, cfg) {
-    if (conn) conn._userConfig = cfg;
-}
-
+function setBotConfig(conn, cfg) { if (conn) conn._userConfig = cfg; }
 function getBotConfig(conn) {
     const store = botStore.getStore();
     if (store && store.botConfig) return store.botConfig;
     if (conn && conn._userConfig) return conn._userConfig;
     return baseConfig;
 }
-
 function allKeys(conn) {
     const keys = new Set(Object.keys(baseConfig));
     if (conn && conn._userConfig) Object.keys(conn._userConfig).forEach(k => keys.add(k));
