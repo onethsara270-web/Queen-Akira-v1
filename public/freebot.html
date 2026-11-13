@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<title>Deploy Free Bot — QUEEN ZARA MINI</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared.css">
+<script>const savedTheme = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-theme', savedTheme);</script>
+<style>
+.wrapper{max-width:520px}
+.badge{display:inline-block;padding:4px 12px;background:var(--accent-glow);border:1.5px solid var(--accent);border-radius:4px;font-size:0.56em;color:var(--accent);margin-left:8px;vertical-align:middle;letter-spacing:1px;font-weight:700;font-family:var(--font-mono)}
+.info-box{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);padding:18px 20px;margin-bottom:18px}
+.info-box h4{color:var(--accent);font-size:0.75em;margin-bottom:10px;letter-spacing:1.5px;text-transform:uppercase;font-weight:700;display:flex;align-items:center;gap:6px;font-family:var(--font-mono)}
+.info-box ul{list-style:none;padding:0;margin:0}
+.info-box li{color:var(--text-mid);font-size:0.8em;line-height:1.8;padding-left:20px;position:relative;margin-bottom:5px;font-family:var(--font-mono)}
+.info-box li::before{content:'▸';position:absolute;left:4px;color:var(--accent);font-weight:700}
+.info-box li strong{color:var(--accent)}
+
+.connect-box{display:none;animation:popIn 0.5s cubic-bezier(0.2,0.9,0.3,1.2)} .connect-box.show{display:block}
+@keyframes popIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
+
+.code-display{font-family:var(--font-mono);font-size:2.2em;font-weight:700;letter-spacing:8px;color:var(--accent);padding:22px 10px;background:var(--surface2);border-radius:var(--radius-sm);margin:16px 0;user-select:all;cursor:pointer;border:2px dashed var(--accent);transition:all 0.35s;text-align:center}
+.code-display:hover{background:var(--accent-glow);transform:scale(1.02)}
+
+.step-list{text-align:left;background:var(--surface);border-radius:var(--radius-sm);padding:16px 18px;margin-top:12px;border:1px solid var(--border)}
+.step-item{display:flex;align-items:flex-start;gap:10px;margin-bottom:10px;color:var(--text-mid);font-size:0.82em;line-height:1.6}
+.step-item:last-child{margin-bottom:0}
+.step-num{width:22px;height:22px;border-radius:6px;background:var(--accent);color:#fff;font-weight:700;font-size:0.75em;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:1px;font-family:var(--font-mono)}
+
+.success-box{background:var(--surface);border:2px solid var(--accent);border-radius:var(--radius);padding:26px 22px;margin-top:20px;text-align:center;display:none;animation:popIn 0.5s}
+.success-box.show{display:block}
+.success-box h3{color:var(--accent);font-size:1.2em;margin-bottom:10px;font-weight:700;font-family:var(--font-display)}
+.success-icon{font-size:3em;margin-bottom:8px;color:var(--accent);animation:bob 2s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-6px)}}
+.error-msg{margin-top:12px;padding:12px;border-radius:var(--radius-sm);font-size:0.82em;text-align:center;display:none;font-weight:600;font-family:var(--font-mono)}
+.error-msg.show{display:block;background:rgba(239,68,68,0.1);border:1.5px solid rgba(239,68,68,0.3);color:var(--danger)}
+.back-link{display:block;text-align:center;margin-top:20px;color:var(--text-dim);font-size:0.85em;text-decoration:none;transition:color 0.3s;font-weight:600;font-family:var(--font-display)}
+.back-link:hover{color:var(--accent)}
+.status-line{display:flex;align-items:center;justify-content:center;gap:8px;font-size:0.85em;color:var(--text-mid);padding:10px;font-weight:600;font-family:var(--font-mono)}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--text-dim);animation:pulse 1.5s infinite}
+.status-dot.wait{background:var(--accent);box-shadow:0 0 10px var(--accent)}
+.status-dot.ok{background:var(--accent);box-shadow:0 0 10px var(--accent)}
+@keyframes pulse{50%{opacity:0.5;transform:scale(0.8)}}
+</style>
+</head>
+<body>
+<div class="orb a"></div><div class="orb b"></div>
+<div class="wrapper" style="position:relative;z-index:1">
+  <div class="glass-card">
+    <button class="theme-btn" onclick="toggleTheme()" style="position:absolute;top:20px;right:20px"><svg class="icon sun-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg><svg class="icon moon-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    
+    <div class="emoji-logo" style="width:80px;height:80px;font-size:2em;"><svg class="icon" style="width:36px;height:36px;" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg></div>
+    <h1 class="logo-text" style="font-size:1.75em">Deploy Free Bot<span class="badge">FREE</span></h1>
+    <div class="subtitle" style="margin-bottom:22px">Deploy + Connect in one step</div>
+
+    <div id="formSection">
+      <div class="info-box">
+        <h4><svg class="icon" viewBox="0 0 24 24"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg> How it works</h4>
+        <ul>
+          <li>Enter your <strong>WhatsApp number</strong></li>
+          <li>Enter your <strong>name</strong></li>
+          <li>Get an <strong>8-digit pairing code</strong></li>
+          <li>Enter it in WhatsApp → <strong>Connected!</strong></li>
+        </ul>
+      </div>
+      <div class="input-group"><label>WhatsApp Number</label><input type="tel" id="phoneInput" placeholder="94703945265" inputmode="numeric" autocomplete="off"></div>
+      <div class="input-group"><label>Your Name</label><input type="text" id="nameInput" placeholder="Your name" autocomplete="off"></div>
+      <button class="btn green" id="deployBtn" onclick="deployBot()">
+        <span id="btnText">Deploy & Get Code</span>
+        <div class="spinner" id="spinner" style="display:none"></div>
+      </button>
+      <div class="error-msg" id="errorBox"></div>
+    </div>
+
+    <div id="connectSection" class="connect-box">
+      <div class="status-line">
+        <span class="status-dot wait" id="statusDot"></span>
+        <span id="statusText">Generating code...</span>
+      </div>
+      <div id="codeBox" class="connect-box">
+        <div style="color:var(--text-mid);font-size:0.85em;font-weight:600;text-align:center;font-family:var(--font-mono);margin-top:10px">Your 8-digit Pairing Code</div>
+        <div class="code-display" id="pairingCode" onclick="copyCode()">--------</div>
+        <div style="text-align:center;color:var(--text-dim);font-size:0.75em;font-weight:600;margin-bottom:12px;font-family:var(--font-mono)">Tap to copy</div>
+        <div class="step-list">
+          <div class="step-item"><span class="step-num">1</span><span>Open <strong style="color:var(--accent)">WhatsApp</strong> on your phone</span></div>
+          <div class="step-item"><span class="step-num">2</span><span>Go to <strong style="color:var(--accent)">Settings → Linked Devices</strong></span></div>
+          <div class="step-item"><span class="step-num">3</span><span>Tap <strong style="color:var(--accent)">Link a Device</strong></span></div>
+          <div class="step-item"><span class="step-num">4</span><span>Choose <strong style="color:var(--accent)">Link with phone number</strong></span></div>
+          <div class="step-item"><span class="step-num">5</span><span>Enter the <strong style="color:var(--accent)">8-digit code</strong> above</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="successBox" class="success-box">
+      <div class="success-icon"><svg class="icon" style="width:50px;height:50px;" viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+      <h3>Bot Connected!</h3>
+      <div style="color:var(--text-mid);font-size:0.85em;margin-bottom:8px;font-family:var(--font-mono)">Your WhatsApp bot is now live 🎉</div>
+      <div class="info-box" style="margin-top:14px;text-align:left">
+        <h4><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Next: Get your password</h4>
+        <ul>
+          <li>Send <strong>.password</strong> to your WhatsApp bot</li>
+          <li>You'll receive a <strong>5-digit password</strong></li>
+        </ul>
+      </div>
+      <a href="/login" class="btn purple" style="display:flex;text-decoration:none;margin-top:14px">Go to Login</a>
+    </div>
+
+    <a href="/login" class="back-link" id="backLink">← Back to Login</a>
+    <div class="footer" style="margin-top:20px">🔒 Your number is safe<br>✨ Powered by <span>FIXO DEV</span> 🖤</div>
+  </div>
+</div>
+<script>
+let currentSessionId = null; let pollTimer = null; let lastCode = null;
+function copyCode() {
+  const code = document.getElementById('pairingCode').textContent.replace(/[^A-Z0-9]/g, '');
+  if (!code || code === '--------' || code === 'COPIED') return;
+  navigator.clipboard.writeText(code).then(() => {
+    const el = document.getElementById('pairingCode'); el.textContent = '✅ COPIED';
+    setTimeout(() => el.textContent = code, 1200);
+  });
+}
+async function deployBot() {
+  const phone = document.getElementById('phoneInput').value.trim().replace(/[^0-9]/g, '');
+  const name = document.getElementById('nameInput').value.trim();
+  const btn = document.getElementById('deployBtn'); const btnText = document.getElementById('btnText');
+  const spinner = document.getElementById('spinner'); const errorBox = document.getElementById('errorBox');
+  errorBox.classList.remove('show');
+  if (!phone || phone.length < 10) { errorBox.textContent = '⚠️ Enter a valid WhatsApp number'; errorBox.classList.add('show'); return; }
+  if (!name) { errorBox.textContent = '⚠️ Enter your name'; errorBox.classList.add('show'); return; }
+  btn.disabled = true; btnText.textContent = 'Deploying...'; spinner.style.display = 'inline-block';
+  try {
+    const r = await fetch('/api/user/quick-deploy', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, name }) });
+    const d = await r.json(); if (!d.success) throw new Error(d.error || 'Deploy failed');
+    currentSessionId = d.sessionId;
+    const r2 = await fetch('/api/user/quick-connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, name, sessionId: d.sessionId }) });
+    const d2 = await r2.json(); if (!d2.success) throw new Error(d2.error || 'Connect failed');
+    document.getElementById('formSection').style.display = 'none';
+    document.getElementById('connectSection').classList.add('show');
+    document.getElementById('codeBox').classList.add('show');
+    document.getElementById('statusText').textContent = 'Generating code...';
+    document.getElementById('statusDot').className = 'status-dot wait';
+    startPolling();
+  } catch (e) {
+    errorBox.textContent = '❌ ' + e.message; errorBox.classList.add('show');
+    btn.disabled = false; btnText.textContent = 'Deploy & Get Code'; spinner.style.display = 'none';
+  }
+}
+function startPolling() { if (pollTimer) clearInterval(pollTimer); pollTimer = setInterval(checkStatus, 2500); checkStatus(); }
+async function checkStatus() {
+  if (!currentSessionId) return;
+  try {
+    const r = await fetch('/api/user/quick-status?sessionId=' + encodeURIComponent(currentSessionId)); const d = await r.json();
+    if (!d.success) return;
+    const dot = document.getElementById('statusDot'); const text = document.getElementById('statusText');
+    const codeBox = document.getElementById('codeBox'); const successBox = document.getElementById('successBox'); const backLink = document.getElementById('backLink');
+    let diag = document.getElementById('diag');
+    if (!diag) { diag = document.createElement('div'); diag.id = 'diag'; diag.style.cssText = 'margin-top:10px;font-size:12px;color:#94a3b8;text-align:center;word-break:break-word'; codeBox.parentNode.insertBefore(diag, codeBox.nextSibling); }
+    diag.textContent = d.pairingCode ? '' : (d.debug || '');
+    if (d.status === 'active') {
+      dot.className = 'status-dot ok'; text.textContent = 'Connected ✅';
+      codeBox.classList.remove('show'); successBox.classList.add('show');
+      document.getElementById('connectSection').classList.remove('show'); backLink.style.display = 'none';
+      if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    } else if (d.status === 'pairing_code_ready') {
+      dot.className = 'status-dot wait'; text.textContent = 'Enter code in WhatsApp'; codeBox.classList.add('show');
+      if (d.pairingCode && d.pairingCode !== lastCode) { lastCode = d.pairingCode; document.getElementById('pairingCode').textContent = d.pairingCode; }
+    } else if (d.status === 'connecting') {
+      dot.className = 'status-dot wait'; text.textContent = 'Starting bot...';
+    } else if (d.status === 'offline' || d.status === 'stopped') {
+      dot.className = 'status-dot'; text.textContent = 'Bot offline' + (d.pairingCodeError ? ' — ' + d.pairingCodeError : '');
+      if (!window._retries) window._retries = 0;
+      if (window._retries < 3 && !lastCode) {
+        window._retries++; text.textContent = 'Retrying… (' + window._retries + '/3)';
+        try { const phone = document.getElementById('phoneInput').value.trim().replace(/[^0-9]/g, ''); await fetch('/api/user/quick-connect', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ phone, sessionId: currentSessionId }) }); } catch (e) {}
+      }
+    } else if (d.pairingCodeError && !d.pairingCode) { text.textContent = 'Starting bot… (' + d.pairingCodeError + ')'; }
+  } catch (e) {}
+}
+function toggleTheme() { const root = document.documentElement; const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light'; root.setAttribute('data-theme', next); localStorage.setItem('theme', next); }
+</script>
+</body></html>

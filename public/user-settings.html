@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<title>My Settings — QUEEN ZARA MINI</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared.css">
+<script>const savedTheme = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-theme', savedTheme);</script>
+<style>
+.tabs{display:flex;gap:6px;margin-bottom:18px;padding:5px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius-sm);overflow-x:auto;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{flex:1;min-width:110px;padding:12px 16px;border:none;border-radius:6px;background:transparent;color:var(--text-dim);font-family:var(--font-mono);font-size:0.8em;font-weight:700;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all 0.3s;display:flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.tab:hover{color:var(--text-mid);background:var(--surface2)}
+.tab.active{background:var(--accent);color:#fff;box-shadow:0 4px 16px var(--accent-glow)}
+.tab-content{display:none;animation:fadeUp 0.45s ease} .tab-content.active{display:block}
+.actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:20px}
+@media(max-width:640px){.actions{grid-template-columns:1fr} .tabs{padding:4px;gap:4px} .tab{padding:10px 12px;font-size:0.72em;min-width:auto;flex:0 0 auto}}
+</style>
+</head>
+<body>
+<div class="orb a"></div><div class="orb b"></div>
+<div class="container">
+  <div class="header">
+    <div class="brand">
+      <div class="mini-logo"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></div>
+      <div style="font-size:1.2em;font-weight:700;color:var(--text);font-family:var(--font-display)">My Settings</div>
+    </div>
+    <div class="nav">
+      <span class="userinfo"><svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> {{NAME}}</span>
+      <a href="/user/settings?key={{KEY}}" class="active"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Settings</a>
+      <a href="/login"><svg class="icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Logout</a>
+      <button class="theme-btn" onclick="toggleTheme()"><svg class="icon sun-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg><svg class="icon moon-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </div>
+
+  <div class="info-banner">
+    <div class="icon-big"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+    <div class="info">
+      <div class="ttl">Your Password: {{PASSWORD}}</div>
+      <div class="sub">{{PHONE}} • Keep this safe!</div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('general', this)"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> General</button>
+    <button class="tab" onclick="switchTab('antilink', this)"><svg class="icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Antilink</button>
+    <button class="tab" onclick="switchTab('antidelete', this)"><svg class="icon" viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg> Anti-Delete</button>
+  </div>
+
+  <div id="tab-general" class="tab-content active">
+    <div id="config-container">
+      <div class="card" style="text-align:center;padding:40px"><span class="loading"></span> Loading your settings...</div>
+    </div>
+  </div>
+
+  <div id="tab-antilink" class="tab-content">
+    <div class="card">
+      <h3><svg class="icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Antilink Control</h3>
+      <div class="field"><div class="toggle"><span class="toggle-label">Enable Antilink</span><label class="switch"><input type="checkbox" id="al-enabled"><span class="slider"></span></label></div></div>
+      <div class="field"><label>Action when link is caught</label><select id="al-action"><option value="delete">Delete only</option><option value="warn">Warn + Delete (kick after limit)</option><option value="kick">Kick instantly</option></select></div>
+      <div class="field"><label>Warn limit (before auto-kick)</label><input type="number" id="al-limit" min="1" max="10" value="3"></div>
+      <div class="field"><div class="toggle"><span class="toggle-label">Enable Whitelist</span><label class="switch"><input type="checkbox" id="al-whitelist-enabled"><span class="slider"></span></label></div></div>
+      <div class="field"><label>Whitelist domains</label><textarea id="al-whitelist" placeholder="whatsapp.com,youtube.com,github.com" style="min-height:58px"></textarea></div>
+      <div class="field"><div class="toggle"><span class="toggle-label">Notify user after delete</span><label class="switch"><input type="checkbox" id="al-notify"><span class="slider"></span></label></div></div>
+      <div class="field"><div class="toggle"><span class="toggle-label">Skip group admins</span><label class="switch"><input type="checkbox" id="al-skipadmins"><span class="slider"></span></label></div></div>
+      <div class="field"><div class="toggle"><span class="toggle-label">Skip bot's own messages</span><label class="switch"><input type="checkbox" id="al-skipbot"><span class="slider"></span></label></div></div>
+
+      <div style="margin-top:14px;padding:12px;background:var(--surface);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:0.85em;border:1px solid var(--border)">
+        <div style="margin-bottom:8px;display:flex;justify-content:space-between"><span style="color:var(--text-dim)">Status</span><span id="al-status">--</span></div>
+        <div style="margin-bottom:8px;display:flex;justify-content:space-between"><span style="color:var(--text-dim)">Action</span><span id="al-action-status">--</span></div>
+        <div style="margin-bottom:8px;display:flex;justify-content:space-between"><span style="color:var(--text-dim)">Warn limit</span><span id="al-limit-status">--</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--text-dim)">Whitelist</span><span id="al-whitelist-status">--</span></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">
+        <button class="btn sm green" onclick="alQuick('on')">Turn ON</button>
+        <button class="btn sm danger" onclick="alQuick('off')">Turn OFF</button>
+      </div>
+      <button class="btn sm green" id="alSaveBtn" onclick="saveAntilink()" style="width:100%;margin-top:10px"><span id="alSaveLabel">Save Antilink</span></button>
+    </div>
+  </div>
+
+  <div id="tab-antidelete" class="tab-content">
+    <div class="card">
+      <h3><svg class="icon" viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Anti-Delete Control</h3>
+      <div class="field"><div class="toggle"><span class="toggle-label">Direct Messages</span><label class="switch"><input type="checkbox" id="ad-dm" onchange="toggleAD('dm')"><span class="slider"></span></label></div></div>
+      <div class="field"><div class="toggle"><span class="toggle-label">Group Chats</span><label class="switch"><input type="checkbox" id="ad-gc" onchange="toggleAD('gc')"><span class="slider"></span></label></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px">
+        <button class="btn sm green" onclick="adAction('set_all')">All ON</button>
+        <button class="btn sm danger" onclick="adAction('off_all')">All OFF</button>
+      </div>
+      <div style="margin-top:14px;padding:12px;background:var(--surface);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:0.85em;border:1px solid var(--border)">
+        <div style="margin-bottom:8px;display:flex;justify-content:space-between"><span style="color:var(--text-dim)">DM</span><span id="ad-dm-status">--</span></div>
+        <div style="display:flex;justify-content:space-between"><span style="color:var(--text-dim)">GC</span><span id="ad-gc-status">--</span></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn sm danger" onclick="resetConfig()" id="resetBtn"><span id="resetLabel">Reset</span></button>
+    <button class="btn sm green" id="saveBtn" onclick="saveConfig()"><span id="saveLabel">Save Settings</span></button>
+  </div>
+</div>
+<div id="toast" class="toast"></div>
+<script>
+const KEY = '{{KEY}}'; let currentConfig = {};
+function toast(msg, type='success') { const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast ' + type + ' show'; setTimeout(() => t.classList.remove('show'), 3200); }
+function switchTab(tabName, btn) { document.querySelectorAll('.tab').forEach(t => t.classList.remove('active')); document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active')); btn.classList.add('active'); document.getElementById('tab-' + tabName).classList.add('active'); }
+async function loadConfig() { try { const r = await fetch('/api/user/config?key=' + KEY); const d = await r.json(); if (!d.success) throw new Error(d.error || 'Failed'); currentConfig = d.config; renderForm(d.config); } catch (e) { document.getElementById('config-container').innerHTML = '<div class="card" style="color:var(--danger);text-align:center;padding:40px">❌ ' + e.message + '</div>'; } }
+function isBool(val) { return val === 'true' || val === 'false'; }
+function renderForm(cfg) {
+  const groups = {
+    'Bot Settings': ['PREFIX', 'MODE', 'BUTTON', 'BOT_NAME', 'STICKER_NAME', 'OWNER_NAME', 'OWNER_NUMBER', 'DESCRIPTION'],
+    'Alive Settings': ['ALIVE_IMG', 'LIVE_MSG'],
+    'Reaction Settings': ['AUTO_REACT', 'CUSTOM_REACT', 'CUSTOM_REACT_EMOJIS'],
+    'Status Settings': ['AUTO_STATUS_SEEN', 'AUTO_STATUS_REACT', 'AUTO_STATUS_REPLY', 'AUTO_STATUS_MSG', 'STATUS_REACT_MODE', 'CUSTOM_STATUS_EMOJI', 'CUSTOM_STATUS_EMOJIS'],
+    'Auto AI': ['AUTO_AI', 'AUTO_AI_COOLDOWN', 'AUTO_AI_GROUPS', 'AUTO_AI_DMS'],
+    'Automation': ['READ_MESSAGE', 'READ_CMD', 'AUTO_VOICE', 'AUTO_STICKER', 'AUTO_REPLY', 'AUTO_TYPING', 'AUTO_RECORDING', 'ALWAYS_ONLINE', 'ANTI_VV'],
+    'Mode': ['PUBLIC_MODE']
+  };
+  let html = ''; let cardIdx = 0;
+  for (const [title, fields] of Object.entries(groups)) {
+    let hasFields = fields.some(f => f in cfg); if (!hasFields) continue;
+    html += '<div class="card" style="animation-delay:' + (cardIdx * 0.05) + 's"><h3>' + title + '</h3>';
+    for (const f of fields) {
+      if (!(f in cfg)) continue; const val = String(cfg[f]); const label = f.replace(/_/g, ' ').toLowerCase();
+      if (isBool(val)) html += '<div class="field"><div class="toggle"><span class="toggle-label">' + label + '</span><label class="switch"><input type="checkbox" data-key="' + f + '" ' + (val === 'true' ? 'checked' : '') + '><span class="slider"></span></label></div></div>';
+      else if (f === 'MODE') html += '<div class="field"><label>' + label + '</label><select data-key="' + f + '"><option value="public" ' + (val === 'public' ? 'selected' : '') + '>public</option><option value="private" ' + (val === 'private' ? 'selected' : '') + '>private</option><option value="inbox" ' + (val === 'inbox' ? 'selected' : '') + '>inbox</option><option value="groups" ' + (val === 'groups' ? 'selected' : '') + '>groups</option></select></div>';
+      else if (f === 'STATUS_REACT_MODE') html += '<div class="field"><label>' + label + '</label><select data-key="' + f + '"><option value="default" ' + (val === 'default' ? 'selected' : '') + '>default</option><option value="custom" ' + (val === 'custom' ? 'selected' : '') + '>custom</option><option value="random" ' + (val === 'random' ? 'selected' : '') + '>random</option></select></div>';
+      else if (f === 'DESCRIPTION' || f === 'AUTO_STATUS_MSG' || f === 'LIVE_MSG') html += '<div class="field"><label>' + label + '</label><textarea data-key="' + f + '">' + val + '</textarea></div>';
+      else if (f === 'AUTO_AI_COOLDOWN') html += '<div class="field"><label>' + label + ' (seconds)</label><input type="number" min="1" max="60" data-key="' + f + '" value="' + val + '"></div>';
+      else html += '<div class="field"><label>' + label + '</label><input type="text" data-key="' + f + '" value="' + val + '"></div>';
+    }
+    html += '</div>'; cardIdx++;
+  }
+  document.getElementById('config-container').innerHTML = html || '<div class="card" style="text-align:center;padding:40px">No settings available</div>';
+}
+async function saveConfig() {
+  const btn = document.getElementById('saveBtn'); const label = document.getElementById('saveLabel');
+  btn.disabled = true; label.innerHTML = '<span class="loading"></span>Saving...';
+  const newConfig = { ...currentConfig };
+  document.querySelectorAll('[data-key]').forEach(el => { const k = el.dataset.key; if (el.type === 'checkbox') newConfig[k] = el.checked ? 'true' : 'false'; else newConfig[k] = el.value; });
+  try { const r = await fetch('/api/user/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ key: KEY, config: newConfig }) }); const d = await r.json(); if (d.success) { currentConfig = newConfig; toast('Settings saved!', 'success'); } else throw new Error(d.error); } catch (e) { toast('❌ ' + e.message, 'error'); } finally { btn.disabled = false; label.textContent = 'Save Settings'; }
+}
+async function resetConfig() {
+  if (!confirm('Reset to default settings?')) return;
+  const btn = document.getElementById('resetBtn'); const label = document.getElementById('resetLabel'); btn.disabled = true; label.textContent = 'Resetting...';
+  try { const r = await fetch('/api/user/config/reset', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ key: KEY }) }); const d = await r.json(); if (d.success) { toast('Reset done!', 'success'); setTimeout(() => location.reload(), 800); } else throw new Error(d.error); } catch (e) { toast('❌ ' + e.message, 'error'); btn.disabled = false; label.textContent = 'Reset'; }
+}
+async function loadAntilink() {
+  try { const r = await fetch('/api/antilink?key=' + KEY); const d = await r.json(); if (!d.success) return;
+    document.getElementById('al-enabled').checked = !!d.enabled; document.getElementById('al-action').value = d.action || 'delete'; document.getElementById('al-limit').value = d.warnLimit || '3';
+    document.getElementById('al-whitelist').value = d.whitelist || ''; document.getElementById('al-whitelist-enabled').checked = d.whitelistEnabled !== false;
+    document.getElementById('al-notify').checked = !!d.notify; document.getElementById('al-skipadmins').checked = !!d.skipAdmins; document.getElementById('al-skipbot').checked = d.skipBot !== false;
+    updateAntilinkStatus(d);
+  } catch (e) {}
+}
+function updateAntilinkStatus(d) {
+  if (!d) d = { enabled: document.getElementById('al-enabled').checked, action: document.getElementById('al-action').value, warnLimit: document.getElementById('al-limit').value, whitelistEnabled: document.getElementById('al-whitelist-enabled').checked };
+  document.getElementById('al-status').innerHTML = d.enabled ? '<span style="color:var(--accent);font-weight:700">ON</span>' : '<span style="color:var(--danger);font-weight:700">OFF</span>';
+  const actionMap = { delete: 'Delete', warn: 'Warn+Kick', kick: 'Kick' };
+  document.getElementById('al-action-status').innerHTML = '<span style="color:var(--accent);font-weight:700">' + (actionMap[d.action] || d.action) + '</span>';
+  document.getElementById('al-limit-status').innerHTML = '<span style="color:var(--accent);font-weight:700">' + (d.warnLimit || '3') + '</span>';
+  document.getElementById('al-whitelist-status').innerHTML = d.whitelistEnabled ? '<span style="color:var(--accent);font-weight:700">ON</span>' : '<span style="color:var(--danger);font-weight:700">OFF</span>';
+}
+function alPayload(enabled) { return { key: KEY, enabled: enabled !== undefined ? enabled : document.getElementById('al-enabled').checked, action: document.getElementById('al-action').value, warnLimit: document.getElementById('al-limit').value, whitelist: document.getElementById('al-whitelist').value.trim(), whitelistEnabled: document.getElementById('al-whitelist-enabled').checked, notify: document.getElementById('al-notify').checked, skipAdmins: document.getElementById('al-skipadmins').checked, skipBot: document.getElementById('al-skipbot').checked }; }
+async function saveAntilink() {
+  const btn = document.getElementById('alSaveBtn'); const label = document.getElementById('alSaveLabel'); btn.disabled = true; label.innerHTML = '<span class="loading"></span>Saving...'; const payload = alPayload();
+  try { const r = await fetch('/api/antilink', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const d = await r.json(); if (d.success) { toast('Antilink saved!', 'success'); updateAntilinkStatus(payload); } else throw new Error(d.error || 'Save failed'); } catch (e) { toast('❌ ' + e.message, 'error'); } finally { btn.disabled = false; label.textContent = 'Save Antilink'; }
+}
+async function alQuick(mode) {
+  const checked = mode === 'on'; document.getElementById('al-enabled').checked = checked; const payload = alPayload(checked);
+  try { const r = await fetch('/api/antilink', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const d = await r.json(); if (d.success) { toast(checked ? 'Antilink ON' : 'Antilink OFF', 'success'); updateAntilinkStatus(payload); } else toast('❌ ' + (d.error || 'Failed'), 'error'); } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+window.addEventListener('DOMContentLoaded', () => { ['al-enabled','al-action','al-limit','al-whitelist-enabled'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', () => updateAntilinkStatus()); }); });
+async function loadAntiDelete() { try { const r = await fetch('/api/antidelete?key=' + KEY); const d = await r.json(); if (d.success) { document.getElementById('ad-dm').checked = d.dm; document.getElementById('ad-gc').checked = d.gc; updateADStatus(d.dm, d.gc); } } catch (e) {} }
+function updateADStatus(dm, gc) { document.getElementById('ad-dm-status').innerHTML = dm ? '<span style="color:var(--accent);font-weight:700">ON</span>' : '<span style="color:var(--danger);font-weight:700">OFF</span>'; document.getElementById('ad-gc-status').innerHTML = gc ? '<span style="color:var(--accent);font-weight:700">ON</span>' : '<span style="color:var(--danger);font-weight:700">OFF</span>'; }
+async function adAction(action) { try { const r = await fetch('/api/antidelete', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ key: KEY, action }) }); const d = await r.json(); if (d.success) { document.getElementById('ad-dm').checked = d.dm; document.getElementById('ad-gc').checked = d.gc; updateADStatus(d.dm, d.gc); toast('Updated!', 'success'); } else toast('❌ ' + (d.error || 'Failed'), 'error'); } catch (e) { toast('❌ ' + e.message, 'error'); } }
+async function toggleAD(type) { await adAction('toggle_' + type); }
+function toggleTheme() { const root = document.documentElement; const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light'; root.setAttribute('data-theme', next); localStorage.setItem('theme', next); }
+loadConfig(); loadAntilink(); loadAntiDelete();
+</script>
+</body></html>

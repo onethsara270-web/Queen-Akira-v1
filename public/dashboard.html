@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<title>Dashboard — QUEEN ZARA MINI</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared.css">
+<script>const savedTheme = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-theme', savedTheme);</script>
+<style>
+.hero{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius);padding:44px 24px;margin-bottom:20px;text-align:center;position:relative;overflow:hidden;box-shadow:var(--glass-shadow)}
+.hero::before{content:'';position:absolute;inset:0;background:radial-gradient(circle at 50% 0%,var(--accent-glow),transparent 60%);pointer-events:none}
+.status-ring{display:inline-flex;align-items:center;justify-content:center;width:110px;height:110px;border-radius:50%;position:relative;margin-bottom:18px;background:var(--surface);z-index:1}
+.status-ring.online::before{content:'';position:absolute;inset:-3px;border-radius:50%;padding:3px;background:var(--gradient);-webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);-webkit-mask-composite:xor;mask-composite:exclude;animation:spin 3s linear infinite}
+.status-ring.online::after{content:'';position:absolute;inset:0;border-radius:50%;box-shadow:0 0 30px var(--accent-glow);animation:ringPulse 2.5s ease-in-out infinite}
+.status-ring.offline::before{content:'';position:absolute;inset:-3px;border-radius:50%;border:3px solid var(--danger)}
+@keyframes ringPulse{0%,100%{box-shadow:0 0 20px var(--accent-glow)}50%{box-shadow:0 0 50px var(--accent-glow-strong)}}
+.status-inner{position:relative;z-index:2;font-size:2.4em;font-weight:900;color:var(--text)}
+.hero h2{font-size:1.5em;font-weight:700;margin-bottom:6px;color:var(--accent);font-family:var(--font-display)}
+.hero h2.offline{color:var(--danger)}
+.hero p{color:var(--text-dim);font-size:0.85em;font-family:var(--font-mono);font-weight:600}
+
+.uptime-card{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius);padding:28px;text-align:center;margin-bottom:20px;box-shadow:var(--glass-shadow)}
+.uptime-value{font-size:2.6em;font-weight:700;font-family:var(--font-display);background:var(--gradient);background-size:200% 200%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;letter-spacing:-1px;animation:gradientShift 5s ease infinite}
+.uptime-label{color:var(--text-dim);font-size:0.72em;text-transform:uppercase;letter-spacing:2px;margin-top:8px;font-weight:700;font-family:var(--font-mono);display:flex;align-items:center;justify-content:center;gap:6px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:14px;margin-bottom:20px}
+.card-icon{width:40px;height:40px;border-radius:10px;background:var(--surface2);display:flex;align-items:center;justify-content:center;color:var(--accent);margin-bottom:12px;box-shadow:0 4px 12px var(--accent-glow)}
+.card-label{font-size:0.68em;color:var(--text-dim);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px;font-weight:700;font-family:var(--font-mono)}
+.card-value{font-size:1.35em;font-weight:700;color:var(--text);font-family:var(--font-display);word-break:break-word}
+
+.info-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-bottom:20px}
+.info-item{background:var(--glass-bg);border:1px solid var(--glass-border);border-radius:var(--radius-sm);padding:16px}
+.info-key{font-size:0.66em;color:var(--text-mid);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px;font-weight:700;font-family:var(--font-mono);display:flex;align-items:center;gap:6px}
+.info-val{font-size:0.86em;color:var(--text);font-family:var(--font-mono);word-break:break-all;font-weight:600}
+
+.remove-btn{background:rgba(239,68,68,0.1);border:1.5px solid rgba(239,68,68,0.3);color:var(--danger);padding:6px 10px;border-radius:6px;font-size:0.72em;font-weight:700;cursor:pointer;font-family:var(--font-mono);transition:all 0.25s;display:inline-flex;align-items:center;gap:4px}
+.remove-btn:hover{background:var(--danger);color:#fff}
+.pass-copy{font-family:var(--font-mono);background:var(--accent-glow);padding:4px 8px;border-radius:6px;color:var(--accent);font-size:0.84em;cursor:pointer;font-weight:700;border:1px solid var(--border-active);transition:all 0.25s}
+.pass-copy:hover{background:var(--accent);color:#fff}
+.live-dot{display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-2);margin-right:6px;box-shadow:0 0 10px var(--accent-2);animation:pulse 1.8s infinite}
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:0.6;transform:scale(1.2)}}
+</style>
+</head>
+<body>
+<div class="orb a"></div><div class="orb b"></div>
+<div class="container">
+  <div class="header">
+    <div class="brand">
+      <div class="mini-logo"><svg class="icon" viewBox="0 0 24 24"><path d="M2 4l3 12h14l3-12-6 7-4-7-4 7-6-7zm3 16h14"/></svg></div>
+      <div style="font-size:1.2em;font-weight:700;background:var(--gradient);background-size:200% 200%;-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;font-family:var(--font-display);animation:gradientShift 6s ease infinite">QUEEN ZARA MINI</div>
+    </div>
+    <div class="nav">
+      <span class="userinfo"><svg class="icon" viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> {{NAME}} <span>[{{ROLE}}]</span></span>
+      <a href="/dashboard?key={{KEY}}" class="active"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> Dashboard</a>
+      <a href="/settings?key={{KEY}}"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Settings</a>
+      <a href="/login"><svg class="icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Logout</a>
+      <button class="theme-btn" onclick="toggleTheme()"><svg class="icon sun-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg><svg class="icon moon-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
+  </div>
+
+  <div class="hero">
+    <div class="status-ring {{STATUS_RING}}">
+      <span class="status-inner">{{STATUS_ICON}}</span>
+    </div>
+    <h2 class="{{STATUS_TEXT_CLASS}}">{{STATUS_TEXT}}</h2>
+    <p>{{STATUS_USER}}</p>
+  </div>
+
+  <div class="card" id="pair-card" style="display:none;margin-bottom:20px;text-align:center">
+    <h3 style="justify-content:center"><svg class="icon" viewBox="0 0 24 24"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg> Link the owner WhatsApp</h3>
+    <div style="color:var(--text-mid);font-size:0.85em;margin-bottom:16px;line-height:1.6">The owner is not linked. Enter the WhatsApp number, press <b>Generate</b>, then on that phone: WhatsApp → Linked devices → Link with phone number → type the code.</div>
+    <div id="pair-form" style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:12px">
+      <input id="pair-num" type="tel" inputmode="numeric" placeholder="94703945265" style="padding:12px;border-radius:var(--radius-sm);border:1.5px solid var(--border);background:var(--surface);color:var(--text);min-width:200px;font-family:var(--font-mono);outline:none">
+      <button id="pair-btn" onclick="genPair()" class="btn" style="padding:12px 16px;width:auto">Generate code</button>
+      <button id="pair-cancel" onclick="cancelPair()" style="display:none;padding:12px 16px;border-radius:var(--radius-sm);border:1.5px solid var(--border-active);background:transparent;color:var(--text-mid);cursor:pointer;font-family:var(--font-display)">Cancel</button>
+    </div>
+    <div id="pair-code" style="font-size:2em;font-weight:700;letter-spacing:6px;min-height:1.4em;font-family:var(--font-display);color:var(--accent)"></div>
+    <div id="pair-note" style="color:var(--text-dim);font-size:0.8em;margin-top:8px;font-family:var(--font-mono)"></div>
+  </div>
+
+  <div class="uptime-card">
+    <div class="uptime-value" id="uptime">--</div>
+    <div class="uptime-label"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> System Uptime</div>
+  </div>
+
+  <div class="grid">
+    <div class="card"><div class="card-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg></div><div class="card-label">RAM Used</div><div class="card-value" id="ram-used">--</div></div>
+    <div class="card"><div class="card-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg></div><div class="card-label">RAM Total</div><div class="card-value" id="ram-total">--</div></div>
+    <div class="card"><div class="card-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="card-label">Total Users</div><div class="card-value" id="total-users">--</div></div>
+    <div class="card"><div class="card-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="10" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" y1="16" x2="8" y2="16"/><line x1="16" y1="16" x2="16" y2="16"/></svg></div><div class="card-label">Active Bots</div><div class="card-value" id="active-bots">--</div></div>
+    <div class="card"><div class="card-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg></div><div class="card-label">Platform</div><div class="card-value" id="platform" style="font-size:1.05em">--</div></div>
+    <div class="card"><div class="card-icon"><svg class="icon" viewBox="0 0 24 24"><path d="M5 12.55a11 11 0 0 1 14.08 0"/><path d="M1.42 9a16 16 0 0 1 21.16 0"/><path d="M8.53 16.11a6 6 0 0 1 6.95 0"/><line x1="12" y1="20" x2="12.01" y2="20"/></svg></div><div class="card-label">Hostname</div><div class="card-value" id="hostname" style="font-size:0.9em">--</div></div>
+  </div>
+
+  <div class="card" style="padding:20px">
+    <h3><svg class="icon" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Deployed Users</h3>
+    <div id="users-list" class="table-wrapper" style="overflow-x:auto;border-radius:var(--radius-sm)">
+      <div style="color:var(--text-dim);font-size:0.86em;padding:20px 0;text-align:center"><span class="loading"></span> Loading...</div>
+    </div>
+  </div>
+
+  <div class="info-grid">
+    <div class="info-item"><div class="info-key"><svg class="icon" viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"/><rect x="9" y="9" width="6" height="6"/><line x1="9" y1="1" x2="9" y2="4"/><line x1="15" y1="1" x2="15" y2="4"/><line x1="9" y1="20" x2="9" y2="23"/><line x1="15" y1="20" x2="15" y2="23"/><line x1="20" y1="9" x2="23" y2="9"/><line x1="20" y1="14" x2="23" y2="14"/><line x1="1" y1="9" x2="4" y2="9"/><line x1="1" y1="14" x2="4" y2="14"/></svg> CPU</div><div class="info-val" id="cpu">--</div></div>
+    <div class="info-item"><div class="info-key"><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg> Started At</div><div class="info-val" id="started">--</div></div>
+    <div class="info-item"><div class="info-key"><svg class="icon" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg> Last Update</div><div class="info-val" id="updated">--</div></div>
+    <div class="info-item"><div class="info-key"><svg class="icon" viewBox="0 0 24 24"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg> RSS Memory</div><div class="info-val" id="rss">--</div></div>
+  </div>
+
+  <div class="footer"><span class="live-dot"></span>Live • Auto-refresh 5s<br><br>✨ Powered by <span>FIXO DEV</span> 🖤</div>
+</div>
+<div id="toast" class="toast"></div>
+<script>
+const KEY = '{{KEY}}';
+async function fetchStatus() {
+  try {
+    const r = await fetch('/status'); const d = await r.json();
+    const fmt = (iso) => new Date(iso).toLocaleString('en-GB',{timeZone:'Asia/Colombo',hour12:true});
+    document.getElementById('uptime').textContent = d.uptimeFormatted || '--';
+    document.getElementById('ram-used').textContent = d.memory.used; document.getElementById('ram-total').textContent = d.memory.total;
+    document.getElementById('total-users').textContent = d.users?.total || 0; document.getElementById('active-bots').textContent = d.users?.activeBots || 0;
+    document.getElementById('platform').textContent = d.system.platform; document.getElementById('hostname').textContent = d.system.hostname;
+    document.getElementById('cpu').textContent = d.system.cpu.split(' ').slice(0,3).join(' ');
+    document.getElementById('started').textContent = fmt(d.startedAt); document.getElementById('updated').textContent = d.lastUpdate ? fmt(d.lastUpdate) : 'N/A';
+    document.getElementById('rss').textContent = d.memory.rss;
+  } catch(e) {}
+}
+async function fetchPairing() {
+  try {
+    const r = await fetch('/api/owner/pairing?key=' + KEY); const d = await r.json();
+    const card = document.getElementById('pair-card');
+    if (!d.success || d.connected) { card.style.display = 'none'; return; }
+    card.style.display = 'block';
+    const inp = document.getElementById('pair-num');
+    if (!inp.value && document.activeElement !== inp) inp.value = d.number || '';
+    document.getElementById('pair-btn').style.display = d.pairing ? 'none' : '';
+    document.getElementById('pair-cancel').style.display = d.pairing ? '' : 'none';
+    document.getElementById('pair-code').textContent = d.pairingCode ? d.pairingCode.replace(/(.{4})(.{4})/, '$1-$2') : (d.pairing ? '…' : '');
+    document.getElementById('pair-note').textContent = d.pairing ? ('Code valid for a short time.') : (d.pairingError ? '⚠ ' + d.pairingError : '');
+  } catch(e) {}
+}
+async function genPair() {
+  const number = document.getElementById('pair-num').value.replace(/[^0-9]/g, '');
+  if (number.length < 8) { alert('Enter the WhatsApp number with country code'); return; }
+  const r = await fetch('/api/owner/pair', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ key: KEY, number }) });
+  const d = await r.json(); if (!d.success) alert('❌ ' + d.error); fetchPairing();
+}
+async function cancelPair() { await fetch('/api/owner/pair/cancel', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ key: KEY }) }); fetchPairing(); }
+async function fetchUsers() {
+  try {
+    const r = await fetch('/api/admin/users?key=' + KEY); const d = await r.json();
+    const el = document.getElementById('users-list');
+    if (!d.success || !d.users || d.users.length === 0) { el.innerHTML = '<div style="color:var(--text-dim);font-size:0.86em;padding:22px 0;text-align:center">No users deployed yet</div>'; return; }
+    let html = '<table class="users-table"><thead><tr><th>Phone</th><th>Name</th><th>Password</th><th>Status</th><th>Deployed</th><th>Actions</th></tr></thead><tbody>';
+    for (const u of d.users) {
+      const badge = u.botStatus === 'active' ? '<span class="badge on">Online</span>' : u.botStatus === 'qr_ready' ? '<span class="badge qr">QR</span>' : u.botStatus === 'pairing_code_ready' ? '<span class="badge qr">Code</span>' : u.botStatus === 'connecting' ? '<span class="badge qr">...</span>' : '<span class="badge off">Offline</span>';
+      const date = new Date(u.createdAt).toLocaleDateString('en-GB');
+      const pass = u.dashPassword ? '<span class="pass-copy" onclick="copyPw(\'' + u.dashPassword + '\')">' + u.dashPassword + '</span>' : '<span style="color:#555">—</span>';
+      html += '<tr><td style="font-family:monospace;font-weight:700;color:var(--accent)">' + u.phone + '</td><td>' + u.name + '</td><td>' + pass + '</td><td>' + badge + '</td><td style="color:var(--text-dim);font-size:0.8em">' + date + '</td>';
+      html += '<td><button class="remove-btn" onclick="removeUser(\'' + u.phone + '\')">Remove</button></td></tr>';
+    }
+    el.innerHTML = html + '</tbody></table>';
+  } catch(e) {}
+}
+function copyPw(pw) { navigator.clipboard.writeText(pw).then(() => { const t = document.getElementById('toast'); t.textContent = '✅ Copied: ' + pw; t.className = 'toast success show'; setTimeout(() => t.classList.remove('show'), 2200); }); }
+async function removeUser(phone) {
+  if (!confirm('Remove user: ' + phone + '?')) return;
+  try {
+    const r = await fetch('/api/admin/remove-user', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ key: KEY, phone }) });
+    const d = await r.json(); if (d.success) { alert('✅ Removed'); fetchUsers(); fetchStatus(); } else alert('❌ ' + (d.error || 'Failed'));
+  } catch (e) { alert('❌ ' + e.message); }
+}
+fetchStatus(); fetchUsers(); fetchPairing();
+setInterval(fetchStatus, 5000); setInterval(fetchUsers, 10000); setInterval(fetchPairing, 2500);
+function toggleTheme() { const root = document.documentElement; const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light'; root.setAttribute('data-theme', next); localStorage.setItem('theme', next); }
+</script>
+</body></html>

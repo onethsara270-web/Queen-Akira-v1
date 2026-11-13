@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+<meta charset="UTF-8">
+<title>Automation Dashboard — QUEEN ZARA MINI</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<link rel="stylesheet" href="/shared.css">
+<script>const savedTheme = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-theme', savedTheme);</script>
+<style>
+.glass { background:var(--surface); border:1.5px solid var(--border); border-radius:var(--radius-sm); padding:16px; }
+.tab-btn { padding:8px 16px; border-radius:var(--radius-sm); font-size:0.85em; font-weight:700; background:var(--surface); border:1.5px solid var(--border); font-family:var(--font-mono); color:var(--text-mid); cursor:pointer; transition:0.3s; }
+.tab-btn.active { background:var(--accent); color:#fff; border-color:transparent; box-shadow:0 4px 16px var(--accent-glow); }
+.status-dot { width:8px; height:8px; border-radius:50%; display:inline-block; }
+.form-input { background:var(--surface); border:1.5px solid var(--border); border-radius:var(--radius-sm); padding:10px 14px; font-size:0.85em; width:100%; outline:none; color:var(--text); font-family:var(--font-mono); transition:0.3s; }
+.form-input:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-glow); }
+.btn-submit { background:var(--gradient); color:#fff; padding:10px 20px; border-radius:var(--radius-sm); font-weight:700; font-size:0.85em; font-family:var(--font-display); border:none; cursor:pointer; transition:0.3s; }
+.btn-submit:hover { transform:translateY(-2px); box-shadow:0 6px 20px var(--accent-glow); }
+.task-form.locked { opacity:0.4; pointer-events:none; }
+#qrModal { position:fixed; inset:0; background:rgba(0,0,0,0.6); backdrop-filter:blur(4px); z-index:50; display:none; align-items:center; justify-content:center; padding:16px; }
+#qrModal.show { display:flex; }
+#toast { position:fixed; bottom:24px; right:24px; padding:12px 24px; border-radius:50px; font-weight:700; font-size:0.85em; z-index:999; font-family:var(--font-mono); display:none; }
+#toast.show { display:block; animation:fadeUp 0.3s; }
+</style>
+</head>
+<body>
+<div class="orb a"></div><div class="orb b"></div>
+
+<div class="container" style="max-width:900px;position:relative;z-index:1">
+  <div class="flex items-center gap-4 mb-8 justify-between">
+    <div class="brand" style="display:flex;align-items:center;gap:12px">
+      <img src="https://i.ibb.co/CKz1Cm4h/Neon-Queen-Zara-Anime-Banner.png" alt="Queen Zara" class="mini-logo" style="object-fit:cover;width:48px;height:48px">
+      <div>
+        <h1 class="logo-text" style="text-align:left;margin:0;font-size:1.3em">Queen Zara Mini</h1>
+        <p style="font-size:0.65em;color:var(--text-dim);letter-spacing:1px;text-transform:uppercase;font-family:var(--font-mono)">Automation Dashboard</p>
+      </div>
+    </div>
+    <button class="theme-btn" onclick="toggleTheme()"><svg class="icon sun-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg><svg class="icon moon-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+  </div>
+
+  <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap">
+    <button data-tab="sessions" class="tab-btn active">Sessions</button>
+    <button data-tab="settings" class="tab-btn">Settings</button>
+    <button data-tab="tasks" class="tab-btn">Tasks</button>
+  </div>
+
+  <div class="glass" style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:20px">
+    <span style="font-size:0.75em;text-transform:uppercase;color:var(--text-dim);font-weight:700;font-family:var(--font-mono)">Active session</span>
+    <select id="sessionPicker" class="form-input" style="flex:1;min-width:200px"></select>
+    <span id="sessionStatusBadge" style="font-size:0.75em;font-weight:700;padding:4px 12px;border-radius:50px;background:var(--surface2);border:1px solid var(--border);font-family:var(--font-mono)">—</span>
+  </div>
+
+  <section id="tab-sessions" style="display:block">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
+      <h2 style="font-weight:700;font-size:1.1em;color:var(--text);font-family:var(--font-display)">Connected Sessions</h2>
+      <button id="btnNewSession" class="btn-submit">+ Connect New</button>
+    </div>
+    <div id="sessionsList" style="display:grid;gap:12px"></div>
+  </section>
+
+  <section id="tab-settings" style="display:none">
+    <h2 style="font-weight:700;font-size:1.1em;color:var(--text);font-family:var(--font-display);margin-bottom:4px">Session Behavior</h2>
+    <p style="font-size:0.75em;color:var(--text-dim);margin-bottom:16px;font-family:var(--font-mono)">Changes apply live to the selected session.</p>
+    <div id="settingsGrid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:12px"></div>
+  </section>
+
+  <section id="tab-tasks" style="display:none">
+    <div id="taskLockNotice" class="glass" style="display:none;color:var(--accent);border-color:var(--accent);font-family:var(--font-mono);font-size:0.85em;margin-bottom:20px">
+      ⚠️ Select a <b>connected</b> session above to unlock these forms.
+    </div>
+    <form id="formReact" class="glass task-form" style="margin-bottom:20px;display:flex;flex-direction:column;gap:12px">
+      <h3 style="font-weight:700;color:var(--accent);font-family:var(--font-display)">React to a message</h3>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+        <input name="chatJid" required placeholder="Chat JID" class="form-input">
+        <input name="messageId" required placeholder="Message ID" class="form-input">
+        <input name="participant" placeholder="Participant JID" class="form-input">
+        <input name="emoji" required placeholder="Emoji" class="form-input" maxlength="8">
+      </div>
+      <button class="btn-submit" style="align-self:flex-start">Send Reaction</button>
+    </form>
+
+    <form id="formPoll" class="glass task-form" style="margin-bottom:20px;display:flex;flex-direction:column;gap:12px">
+      <h3 style="font-weight:700;color:var(--accent);font-family:var(--font-display)">Send a poll</h3>
+      <div style="display:grid;gap:12px">
+        <input name="chatJid" required placeholder="Chat JID" class="form-input">
+        <input name="question" required placeholder="Poll question" class="form-input">
+        <input name="options" required placeholder="Options, comma separated" class="form-input">
+        <input name="selectableCount" type="number" min="1" value="1" placeholder="Selectable answers" class="form-input">
+      </div>
+      <button class="btn-submit" style="align-self:flex-start">Send Poll</button>
+    </form>
+
+    <form id="formFollow" class="glass task-form" style="margin-bottom:20px;display:flex;flex-direction:column;gap:12px">
+      <h3 style="font-weight:700;color:var(--accent);font-family:var(--font-display)">Follow a channel</h3>
+      <input name="channelLink" required placeholder="https://whatsapp.com/channel/..." class="form-input">
+      <button class="btn-submit" style="align-self:flex-start">Follow Channel</button>
+    </form>
+
+    <div>
+      <h3 style="font-weight:700;margin-bottom:12px;color:var(--text);font-family:var(--font-display)">Recent Tasks</h3>
+      <div id="taskLog" style="display:flex;flex-direction:column;gap:8px;font-size:0.85em;font-family:var(--font-mono)"></div>
+    </div>
+  </section>
+</div>
+
+<div id="qrModal">
+  <div class="glass" style="max-width:360px;width:100%;text-align:center;padding:24px;border-radius:var(--radius)">
+    <h3 style="font-weight:700;color:var(--accent);font-family:var(--font-display);margin-bottom:8px">Scan with WhatsApp</h3>
+    <p style="font-size:0.75em;color:var(--text-dim);font-family:var(--font-mono);margin-bottom:16px">Linked devices → Link a device</p>
+    <div id="qrBox" style="background:#fff;border-radius:12px;padding:12px;display:flex;align-items:center;justify-content:center;min-height:220px"></div>
+    <p id="qrStatusText" style="font-size:0.8em;color:var(--text-dim);font-family:var(--font-mono);margin-top:12px">Waiting for scan…</p>
+    <button id="qrCloseBtn" style="margin-top:12px;background:transparent;border:none;color:var(--text-dim);font-size:0.8em;font-family:var(--font-mono);cursor:pointer">Close</button>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+const API = '/api/automation';
+let sessions = []; let selectedSession = null; let qrPollTimer = null;
+
+function toast(msg, ok = true) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `show ${ok ? 'success' : 'error'}`;
+  t.style.background = ok ? 'var(--surface2)' : 'rgba(239,68,68,0.9)';
+  t.style.color = ok ? 'var(--accent)' : '#fff';
+  t.style.border = `1.5px solid ${ok ? 'var(--accent)' : 'var(--danger)'}`;
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('section[id^="tab-"]').forEach(s => s.style.display = 'none');
+    document.getElementById('tab-' + btn.dataset.tab).style.display = 'block';
+  });
+});
+
+async function loadSessions() {
+  const r = await fetch(`${API}/sessions`).then(r => r.json());
+  if (!r.success) return;
+  sessions = r.sessions;
+  renderSessionsList(); renderSessionPicker();
+}
+
+function renderSessionsList() {
+  const box = document.getElementById('sessionsList');
+  box.innerHTML = sessions.map(s => `
+    <div class="glass" style="display:flex;align-items:center;justify-content:space-between">
+      <div style="display:flex;align-items:center;gap:12px">
+        <span class="status-dot ${s.status === 'active' ? 'bg-lime' : ''}" style="background:${s.status === 'active' ? 'var(--accent)' : 'var(--danger)'};box-shadow:0 0 10px ${s.status === 'active' ? 'var(--accent)' : 'var(--danger)'}"></span>
+        <div>
+          <div style="font-weight:700;font-size:0.9em;font-family:var(--font-mono)">${escapeHtml(s.label || s.phone || s.sessionId)}</div>
+          <div style="font-size:0.75em;color:var(--text-dim);font-family:var(--font-mono)">${s.sessionId} ${s.isOwner ? '· owner' : ''}</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <span class="badge ${s.status === 'active' ? 'on' : 'off'}">${s.status}</span>
+        ${!s.isOwner ? `<button data-remove="${s.sessionId}" style="background:transparent;border:none;color:var(--text-dim);cursor:pointer;font-size:1.1em">×</button>` : ''}
+      </div>
+    </div>`).join('') || '<p style="font-size:0.85em;color:var(--text-dim);font-family:var(--font-mono)">No sessions yet.</p>';
+
+  box.querySelectorAll('[data-remove]').forEach(b => b.addEventListener('click', async () => {
+    if (!confirm('Remove this session?')) return;
+    await fetch(`${API}/sessions/${b.dataset.remove}`, { method: 'DELETE' });
+    loadSessions();
+  }));
+}
+
+function renderSessionPicker() {
+  const sel = document.getElementById('sessionPicker');
+  const prev = sel.value;
+  sel.innerHTML = sessions.map(s => `<option value="${s.sessionId}">${escapeHtml(s.label || s.phone || s.sessionId)} ${s.status === 'active' ? '🟢' : '🔴'}</option>`).join('');
+  if (sessions.find(s => s.sessionId === prev)) sel.value = prev;
+  selectedSession = sel.value || null;
+  onSessionChange();
+}
+
+document.getElementById('sessionPicker').addEventListener('change', (e) => { selectedSession = e.target.value; onSessionChange(); });
+function currentSession() { return sessions.find(s => s.sessionId === selectedSession); }
+
+function onSessionChange() {
+  const s = currentSession(); const badge = document.getElementById('sessionStatusBadge');
+  const connected = !!(s && s.status === 'active');
+  badge.textContent = connected ? '🟢 Connected' : '🔴 Not connected';
+  badge.style.color = connected ? 'var(--accent)' : 'var(--danger)';
+  badge.style.borderColor = connected ? 'var(--accent)' : 'var(--danger)';
+  document.querySelectorAll('.task-form').forEach(f => f.classList.toggle('locked', !connected));
+  document.getElementById('taskLockNotice').style.display = connected ? 'none' : 'block';
+  if (connected) loadSettings();
+}
+
+document.getElementById('btnNewSession').addEventListener('click', async () => {
+  const label = prompt('Label for this session:', '') || '';
+  const r = await fetch(`${API}/sessions`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ label }) }).then(r => r.json());
+  if (!r.success) return toast(r.error || 'Could not start session', false);
+  openQrModal(r.sessionId);
+});
+
+function openQrModal(sessionId) {
+  document.getElementById('qrModal').classList.add('show');
+  document.getElementById('qrBox').innerHTML = '';
+  document.getElementById('qrStatusText').textContent = 'Waiting for QR…';
+  let qrRendered = null;
+  if (qrPollTimer) clearInterval(qrPollTimer);
+  qrPollTimer = setInterval(async () => {
+    const r = await fetch(`${API}/sessions/${sessionId}/status`).then(r => r.json()).catch(() => null);
+    if (!r || !r.success) return;
+    if (r.qr && r.qr !== qrRendered) {
+      qrRendered = r.qr; document.getElementById('qrBox').innerHTML = '';
+      new QRCode(document.getElementById('qrBox'), { text: r.qr, width: 220, height: 220 });
+      document.getElementById('qrStatusText').textContent = 'Scan this QR code now';
+    }
+    if (r.status === 'active') {
+      document.getElementById('qrStatusText').textContent = '✅ Connected!';
+      clearInterval(qrPollTimer); setTimeout(() => { closeQrModal(); loadSessions(); }, 1200);
+    }
+  }, 2500);
+}
+function closeQrModal() { document.getElementById('qrModal').classList.remove('show'); if (qrPollTimer) clearInterval(qrPollTimer); }
+document.getElementById('qrCloseBtn').addEventListener('click', closeQrModal);
+
+const SETTINGS_META = [
+  ['AUTO_STATUS_SEEN', 'Status Seen', 'Mark statuses as seen automatically.'],
+  ['AUTO_STATUS_REACT', 'Status React', 'React to statuses automatically.'],
+  ['AUTO_STATUS_REPLY', 'Status Reply', 'Send auto reply when status is viewed.'],
+  ['AUTO_RECORDING', 'Auto Recording', 'Show "recording audio…" while replying.'],
+  ['AUTO_TYPING', 'Auto Typing', 'Show "typing…" while replying.'],
+  ['ALWAYS_ONLINE', 'Always Online', 'Keep session presence as online.']
+];
+
+async function loadSettings() {
+  if (!selectedSession) return;
+  const r = await fetch(`${API}/sessions/${selectedSession}/settings`).then(r => r.json());
+  if (!r.success) return;
+  renderSettings(r.settings);
+}
+
+function renderSettings(settings) {
+  const box = document.getElementById('settingsGrid');
+  box.innerHTML = SETTINGS_META.map(([key, title, desc]) => `
+    <label class="glass" style="display:flex;align-items:center;justify-content:space-between;gap:12px;cursor:pointer">
+      <div>
+        <div style="font-weight:700;font-size:0.9em;font-family:var(--font-display)">${title}</div>
+        <div style="font-size:0.75em;color:var(--text-dim);font-family:var(--font-mono)">${desc}</div>
+      </div>
+      <label class="switch"><input type="checkbox" data-key="${key}" ${settings[key] ? 'checked' : ''}><span class="slider"></span></label>
+    </label>`).join('');
+
+  box.querySelectorAll('input[type=checkbox]').forEach(cb => {
+    cb.addEventListener('change', async () => {
+      if (!selectedSession) return;
+      const patch = { [cb.dataset.key]: cb.checked };
+      const r = await fetch(`${API}/sessions/${selectedSession}/settings`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(patch) }).then(r => r.json());
+      if (!r.success) { toast(r.error || 'Failed to save', false); cb.checked = !cb.checked; } else toast(`${cb.dataset.key} updated`);
+    });
+  });
+}
+
+function formToPayload(form) {
+  const data = Object.fromEntries(new FormData(form).entries());
+  data.sessionId = selectedSession;
+  if (data.options) data.options = data.options.split(',').map(s => s.trim()).filter(Boolean);
+  if (data.selectableCount) data.selectableCount = parseInt(data.selectableCount, 10) || 1;
+  return data;
+}
+
+async function submitTask(endpoint, form) {
+  if (!selectedSession || currentSession()?.status !== 'active') return toast('Select a connected session first', false);
+  const r = await fetch(`${API}/tasks/${endpoint}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(formToPayload(form)) }).then(r => r.json());
+  if (!r.success) toast(r.error || 'Task failed to queue', false); else { toast('Task queued'); form.reset(); loadTasks(); }
+}
+
+document.getElementById('formReact').addEventListener('submit', e => { e.preventDefault(); submitTask('react', e.target); });
+document.getElementById('formPoll').addEventListener('submit', e => { e.preventDefault(); submitTask('poll', e.target); });
+document.getElementById('formFollow').addEventListener('submit', e => { e.preventDefault(); submitTask('follow', e.target); });
+
+async function loadTasks() {
+  const r = await fetch(`${API}/tasks`).then(r => r.json()).catch(() => null);
+  if (!r || !r.success) return;
+  const box = document.getElementById('taskLog');
+  box.innerHTML = r.tasks.map(t => `
+    <div class="glass" style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px">
+      <span>${t.type} · ${t.id}</span>
+      <span style="color:${t.status === 'done' ? 'var(--accent)' : t.status === 'failed' ? 'var(--danger)' : '#f59e0b'}">${t.status}${t.error ? ' — ' + escapeHtml(t.error) : ''}</span>
+    </div>`).join('') || '<p style="color:var(--text-dim)">No tasks yet.</p>';
+}
+
+function escapeHtml(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+loadSessions(); loadTasks();
+setInterval(loadSessions, 8000); setInterval(loadTasks, 6000);
+function toggleTheme() { const root = document.documentElement; const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light'; root.setAttribute('data-theme', next); localStorage.setItem('theme', next); }
+</script>
+</body></html>
