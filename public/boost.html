@@ -1,146 +1,166 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="light">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Channel Boost - Panel</title>
+<title>Channel Boost — QUEEN ZARA MINI</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/shared.css">
+<script>const savedTheme = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-theme', savedTheme);</script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0a0a1a; color: #e0e0e0; padding: 20px; min-height: 100vh; }
-  .container { max-width: 700px; margin: 0 auto; padding-bottom: 50px; }
-  
-  .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; border-bottom: 1px solid #2a2a4a; padding-bottom: 16px; }
-  h1 { font-size: 24px; color: #8b5cf6; display: flex; align-items: center; gap: 10px; }
-  .back-btn { background: #1a1a2e; color: #a0a0c0; text-decoration: none; padding: 8px 16px; border-radius: 6px; border: 1px solid #2a2a4a; font-size: 14px; }
-  .back-btn:hover { background: #2a2a4a; color: #fff; }
+/* Boost page specific CSS */
+.tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
+.tab-btn{padding:10px 16px;border-radius:var(--radius-sm);font-size:0.85em;font-weight:700;background:var(--surface);border:1.5px solid var(--border);font-family:var(--font-mono);color:var(--text-mid);cursor:pointer;transition:0.3s;display:flex;align-items:center;gap:6px}
+.tab-btn.active{background:var(--accent);color:#fff;border-color:transparent;box-shadow:0 4px 16px var(--accent-glow)}
+.tab-content{display:none;animation:fadeUp 0.4s ease}
+.tab-content.active{display:block}
 
-  .card { background: #1a1a2e; border-radius: 12px; padding: 20px; margin-bottom: 20px; border: 1px solid #2a2a4a; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
-  
-  label { display: block; margin-bottom: 8px; font-size: 13px; color: #a0a0c0; font-weight: 600; }
-  input, select { width: 100%; padding: 12px; background: #0f0f1f; border: 1px solid #2a2a4a; border-radius: 8px; color: #e0e0e0; margin-bottom: 16px; font-size: 14px; outline: none; transition: 0.2s; }
-  input:focus, select:focus { border-color: #8b5cf6; }
-  
-  button { width: 100%; padding: 14px; background: linear-gradient(135deg, #8b5cf6, #6366f1); border: none; border-radius: 8px; color: white; font-weight: 700; cursor: pointer; font-size: 15px; transition: 0.2s; }
-  button:hover:not(:disabled) { opacity: 0.9; transform: translateY(-1px); }
-  button:disabled { opacity: 0.5; cursor: not-allowed; }
+.status-box{padding:16px;background:var(--surface);border-radius:var(--radius-sm);margin-top:16px;font-size:0.85em;display:none;line-height:1.6;border:1px solid var(--border);font-family:var(--font-mono)}
+.status-box.ok{border-left:4px solid var(--accent);display:block;color:var(--text)}
+.status-box.err{border-left:4px solid var(--danger);display:block;color:var(--text)}
 
-  .tabs { display: flex; gap: 10px; margin-bottom: 20px; }
-  .tab { flex: 1; padding: 12px; background: #0f0f1f; border: 1px solid #2a2a4a; border-radius: 8px; cursor: pointer; text-align: center; font-size: 14px; font-weight: 600; color: #a0a0c0; transition: 0.2s; }
-  .tab.active { background: #8b5cf6; border-color: #8b5cf6; color: #fff; }
+.session-info{display:flex;align-items:center;justify-content:space-between;background:var(--surface);padding:16px;border-radius:var(--radius-sm);margin-bottom:20px;border:1px solid var(--border);flex-wrap:wrap;gap:10px}
+.session-info span{font-family:var(--font-mono);font-size:0.85em;font-weight:600}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--danger);box-shadow:0 0 10px var(--danger)}
+.dot.on{background:var(--accent);box-shadow:0 0 10px var(--accent)}
 
-  .status-box { padding: 16px; background: #0f0f1f; border-radius: 8px; margin-top: 16px; font-size: 14px; display: none; line-height: 1.5; }
-  .status-box.ok { border-left: 4px solid #10b981; display: block; }
-  .status-box.err { border-left: 4px solid #ef4444; display: block; }
-  
-  .session-info { display: flex; align-items: center; gap: 10px; font-size: 14px; background: #0f0f1f; padding: 12px; border-radius: 8px; margin-bottom: 16px; border: 1px solid #2a2a4a; }
-  .dot { width: 10px; height: 10px; border-radius: 50%; background: #10b981; box-shadow: 0 0 8px #10b981; }
-  .dot.off { background: #ef4444; box-shadow: 0 0 8px #ef4444; }
-
-  .boost-list { max-height: 300px; overflow-y: auto; padding-right: 5px; }
-  .boost-item { padding: 12px; background: #0f0f1f; border-radius: 8px; margin-bottom: 10px; font-size: 13px; border: 1px solid #2a2a4a; }
-  .badge { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 11px; font-weight: bold; margin-left: 8px; }
-  .badge.active { background: rgba(16, 185, 129, 0.2); color: #10b981; }
-  .badge.reverted { background: rgba(239, 68, 68, 0.2); color: #ef4444; }
-
-  /* Scrollbar */
-  ::-webkit-scrollbar { width: 6px; }
-  ::-webkit-scrollbar-track { background: #0f0f1f; }
-  ::-webkit-scrollbar-thumb { background: #2a2a4a; border-radius: 3px; }
+.boost-item{padding:16px;background:var(--surface);border-radius:var(--radius-sm);margin-bottom:12px;font-size:0.85em;border:1px solid var(--border);transition:all 0.3s}
+.boost-item:hover{border-color:var(--border-active);transform:translateY(-2px)}
+.badge{display:inline-block;padding:3px 8px;border-radius:6px;font-size:0.7em;font-weight:700;font-family:var(--font-mono)}
+.badge.active{background:var(--accent-glow);color:var(--accent);border:1px solid var(--accent)}
+.badge.reverted{background:rgba(239,68,68,0.1);color:var(--danger);border:1px solid var(--danger)}
 </style>
 </head>
 <body>
-<div class="container">
+<div class="orb a"></div><div class="orb b"></div>
+
+<div class="container" style="max-width:800px;position:relative;z-index:1">
+  
+  <!-- HEADER -->
   <div class="header">
-    <h1>🚀 Channel Boost</h1>
-    <a href="/panel" class="back-btn">← Back to Panel</a>
-  </div>
-
-  <div class="card">
-    <div class="session-info" id="sessionInfo">
-      <div class="dot off" id="statusDot"></div>
-      <span id="sessionText">Loading connected bots...</span>
+    <div class="brand">
+      <div class="mini-logo">
+        <svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+      </div>
+      <div style="font-size:1.2em;font-weight:700;color:var(--text);font-family:var(--font-display)">Boost Center</div>
     </div>
-    <label>Select Bot (Requester)</label>
-    <select id="sessionSelect" onchange="onSessionChange()">
-      <option value="">-- No bots connected --</option>
-    </select>
+    <div class="nav">
+      <a href="/dashboard?key={{KEY}}"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> Dashboard</a>
+      <a href="/settings?key={{KEY}}"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Settings</a>
+      <a href="/boost?key={{KEY}}" class="active"><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/></svg> Boost</a>
+      <a href="/login"><svg class="icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Logout</a>
+      <button class="theme-btn" onclick="toggleTheme()"><svg class="icon sun-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg><svg class="icon moon-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+    </div>
   </div>
 
+  <!-- SESSION SELECTION -->
+  <div class="card" style="margin-bottom:20px">
+    <div class="session-info" id="sessionInfo">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="dot" id="statusDot"></div>
+        <span id="sessionText">Loading connected bots...</span>
+      </div>
+      <select id="sessionSelect" class="form-input" style="max-width:250px;padding:8px;margin:0" onchange="onSessionChange()">
+        <option value="">-- No bots connected --</option>
+      </select>
+    </div>
+  </div>
+
+  <!-- BOOST FORMS -->
   <div class="card">
     <div class="tabs">
-      <div class="tab active" data-type="follow" onclick="switchTab('follow')">👥 Followers</div>
-      <div class="tab" data-type="react" onclick="switchTab('react')">❤️ Reactions</div>
-      <div class="tab" data-type="poll" onclick="switchTab('poll')">📊 Poll Votes</div>
+      <button class="tab-btn active" data-type="follow" onclick="switchTab('follow', this)">👥 Followers</button>
+      <button class="tab-btn" data-type="react" onclick="switchTab('react', this)">❤️ Reactions</button>
+      <button class="tab-btn" data-type="poll" onclick="switchTab('poll', this)">📊 Poll Votes</button>
     </div>
 
     <!-- FOLLOW FORM -->
-    <div id="formFollow">
-      <label>Channel Link</label>
-      <input type="text" id="followLink" placeholder="https://whatsapp.com/channel/0029...">
-      <p style="font-size: 12px; color: #a0a0c0; margin-top: -10px; margin-bottom: 16px;">All connected bots will follow this channel.</p>
-      <button onclick="submitBoost('follow')" id="btnFollow">Boost Followers</button>
+    <div id="tab-follow" class="tab-content active">
+      <div class="field">
+        <label>Channel Link</label>
+        <input type="text" id="followLink" placeholder="https://whatsapp.com/channel/0029...">
+        <p style="font-size:0.75em;color:var(--text-dim);margin-top:8px;font-family:var(--font-mono)">All connected bots will follow this channel.</p>
+      </div>
+      <button class="btn green" onclick="submitBoost('follow')" id="btnFollow" style="margin-top:10px">Boost Followers</button>
     </div>
 
     <!-- REACT FORM -->
-    <div id="formReact" style="display:none">
-      <label>Channel Post URL (Must include Post ID)</label>
-      <input type="text" id="reactLink" placeholder="https://whatsapp.com/channel/0029.../123456789">
-      <label>Reaction Emoji</label>
-      <input type="text" id="reactEmoji" placeholder="❤️" value="❤️">
-      <button onclick="submitBoost('react')" id="btnReact">Boost Reactions</button>
+    <div id="tab-react" class="tab-content">
+      <div class="field">
+        <label>Channel Post URL (Must include Post ID)</label>
+        <input type="text" id="reactLink" placeholder="https://whatsapp.com/channel/0029.../123456789">
+      </div>
+      <div class="field">
+        <label>Reaction Emoji</label>
+        <input type="text" id="reactEmoji" placeholder="❤️" value="❤️">
+      </div>
+      <button class="btn green" onclick="submitBoost('react')" id="btnReact" style="margin-top:10px">Boost Reactions</button>
     </div>
 
     <!-- POLL FORM -->
-    <div id="formPoll" style="display:none">
-      <label>Channel Poll Post URL (Must include Post ID)</label>
-      <input type="text" id="pollLink" placeholder="https://whatsapp.com/channel/0029.../123456789">
-      <label>Poll Option to Vote</label>
-      <input type="text" id="pollOption" placeholder="Option Name (e.g. Blue)">
-      <button onclick="submitBoost('poll')" id="btnPoll">Boost Poll Votes</button>
+    <div id="tab-poll" class="tab-content">
+      <div class="field">
+        <label>Channel Poll Post URL (Must include Post ID)</label>
+        <input type="text" id="pollLink" placeholder="https://whatsapp.com/channel/0029.../123456789">
+      </div>
+      <div class="field">
+        <label>Poll Option to Vote</label>
+        <input type="text" id="pollOption" placeholder="Option Name (e.g. Blue)">
+      </div>
+      <button class="btn green" onclick="submitBoost('poll')" id="btnPoll" style="margin-top:10px">Boost Poll Votes</button>
     </div>
 
     <div id="statusBox" class="status-box"></div>
   </div>
 
+  <!-- HISTORY -->
   <div class="card">
-    <h3 style="font-size: 16px; margin-bottom: 16px; color: #8b5cf6;">📋 Recent Boosts</h3>
-    <div class="boost-list" id="boostList">
-      <div style="color: #a0a0c0; font-size: 13px;">Loading...</div>
+    <h3><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Recent Boosts</h3>
+    <div id="boostList" style="margin-top:15px;max-height:350px;overflow-y:auto;padding-right:5px">
+      <div style="color: var(--text-dim); font-size: 0.85em; text-align:center; padding: 20px 0;"><span class="loading"></span> Loading...</div>
     </div>
   </div>
+
 </div>
+<div id="toast" class="toast"></div>
 
 <script>
 let currentSessionId = null;
 
-// Load Sessions on page load
+function showToast(msg, type='success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast ' + type + ' show';
+  setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// Load Sessions
 async function loadSessions() {
   try {
     const res = await fetch('/api/boost/sessions');
     const data = await res.json();
-    
     const select = document.getElementById('sessionSelect');
-    select.innerHTML = '';
     
     if (!data.success || !data.sessions || data.sessions.length === 0) {
-      document.getElementById('sessionInfo').innerHTML = '<div class="dot off"></div><span style="color:#ef4444">No connected bots available. Please connect a bot first.</span>';
-      select.innerHTML = '<option value="">-- No bots connected --</option>';
+      document.getElementById('sessionText').textContent = 'No connected bots available.';
+      document.getElementById('statusDot').className = 'dot';
+      select.innerHTML = '<option value="">-- No bots --</option>';
       return;
     }
 
-    document.getElementById('sessionInfo').innerHTML = `<div class="dot"></div><span style="color:#10b981">${data.sessions.length} Bot(s) connected and ready to boost.</span>`;
+    document.getElementById('sessionText').textContent = `${data.sessions.length} Bot(s) connected.`;
+    document.getElementById('statusDot').className = 'dot on';
     
+    let options = '';
     data.sessions.forEach(sess => {
       const isOwner = sess.sessionId === '__owner__';
-      const label = isOwner ? `Owner Bot (+${sess.phone})` : `User Bot (+${sess.phone})`;
-      const opt = document.createElement('option');
-      opt.value = sess.sessionId;
-      opt.textContent = label;
-      select.appendChild(opt);
+      const label = isOwner ? `Owner (+${sess.phone})` : `User (+${sess.phone})`;
+      options += `<option value="${sess.sessionId}">${label}</option>`;
     });
+    select.innerHTML = options;
 
-    // Auto select first session
-    if (data.sessions.length > 0) {
+    if (!currentSessionId && data.sessions.length > 0) {
       currentSessionId = data.sessions[0].sessionId;
       select.value = currentSessionId;
       loadBoosts();
@@ -155,21 +175,18 @@ function onSessionChange() {
   loadBoosts();
 }
 
-function switchTab(type) {
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.querySelector(`.tab[data-type="${type}"]`).classList.add('active');
-  
-  document.getElementById('formFollow').style.display = type === 'follow' ? 'block' : 'none';
-  document.getElementById('formReact').style.display = type === 'react' ? 'block' : 'none';
-  document.getElementById('formPoll').style.display = type === 'poll' ? 'block' : 'none';
-  
+function switchTab(type, btn) {
+  document.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('tab-' + type).classList.add('active');
   document.getElementById('statusBox').style.display = 'none';
 }
 
 // Submit Boost
 async function submitBoost(type) {
   if (!currentSessionId) {
-    alert("Please connect a bot first!");
+    showToast('Please connect a bot first!', 'error');
     return;
   }
 
@@ -177,7 +194,8 @@ async function submitBoost(type) {
   const statusBox = document.getElementById('statusBox');
   
   btn.disabled = true;
-  btn.textContent = "Processing... (This may take a minute)";
+  const originalText = btn.innerHTML;
+  btn.innerHTML = '<span class="loading"></span> Processing...';
   statusBox.className = 'status-box';
   statusBox.style.display = 'none';
 
@@ -185,9 +203,8 @@ async function submitBoost(type) {
     let url = `/api/boost/${type}`;
     let body = { requesterSessionId: currentSessionId };
 
-    if (type === 'follow') {
-      body.channelLink = document.getElementById('followLink').value;
-    } else if (type === 'react') {
+    if (type === 'follow') body.channelLink = document.getElementById('followLink').value;
+    else if (type === 'react') {
       body.channelLink = document.getElementById('reactLink').value;
       body.emoji = document.getElementById('reactEmoji').value || '❤️';
     } else if (type === 'poll') {
@@ -210,22 +227,24 @@ async function submitBoost(type) {
         Channel: ${data.channelName || 'Unknown'}<br>
         Successful: <b>${data.successful}/${data.total}</b> bots<br>
         Failed: <b>${data.failed}</b> bots
-        ${data.errors && data.errors.length > 0 ? `<br><br><span style="color:#ef4444; font-size:12px">Errors: ${data.errors.join('<br>')}</span>` : ''}
+        ${data.errors && data.errors.length > 0 ? `<br><span style="color:var(--danger);font-size:0.9em">Errors: ${data.errors.join(', ')}</span>` : ''}
       `;
       loadBoosts();
+      showToast('Boost completed successfully!');
     } else {
       throw new Error(data.error || 'Unknown error occurred');
     }
   } catch (error) {
     statusBox.className = 'status-box err';
     statusBox.innerHTML = `<b>❌ Error:</b> ${error.message}`;
+    showToast(error.message, 'error');
   } finally {
     btn.disabled = false;
-    btn.textContent = `Boost ${type.charAt(0).toUpperCase() + type.slice(1)}`;
+    btn.innerHTML = originalText;
   }
 }
 
-// Load Boost History
+// Load History
 async function loadBoosts() {
   if (!currentSessionId) return;
   const listEl = document.getElementById('boostList');
@@ -235,7 +254,7 @@ async function loadBoosts() {
     const data = await res.json();
     
     if (!data.success || !data.boosts || data.boosts.length === 0) {
-      listEl.innerHTML = '<div style="color: #a0a0c0; font-size: 13px; text-align:center;">No boosts yet.</div>';
+      listEl.innerHTML = '<div style="color: var(--text-dim); font-size: 0.85em; text-align:center; padding: 20px 0;">No boosts yet.</div>';
       return;
     }
 
@@ -247,25 +266,32 @@ async function loadBoosts() {
       return `
         <div class="boost-item">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 8px;">
-            <b>${emoji} ${b.actionType.toUpperCase()}</b>
+            <b style="font-family:var(--font-display);color:var(--accent)">${emoji} ${b.actionType.toUpperCase()}</b>
             <span class="badge ${b.status}">${b.status}</span>
           </div>
-          <div style="color: #a0a0c0; margin-bottom: 4px;">Channel: ${b.channelName || b.channelJid.substring(0, 15)}...</div>
-          <div style="display:flex; justify-content:space-between;">
+          <div style="color: var(--text-mid); margin-bottom: 4px;">Channel: ${b.channelName || b.channelJid.substring(0, 15)}...</div>
+          <div style="display:flex; justify-content:space-between;font-size:0.9em">
             <span>Bots: <b>${okCount}/${b.participants.length}</b> done</span>
-            <span style="font-size: 11px; color: #666;">${date}</span>
+            <span style="color: var(--text-dim);">${date}</span>
           </div>
         </div>
       `;
     }).join('');
   } catch (err) {
-    listEl.innerHTML = '<div style="color: #ef4444; font-size: 13px;">Failed to load history.</div>';
+    listEl.innerHTML = '<div style="color: var(--danger); font-size: 0.85em; text-align:center;">Failed to load history.</div>';
   }
+}
+
+function toggleTheme() {
+  const root = document.documentElement;
+  const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light';
+  root.setAttribute('data-theme', next);
+  localStorage.setItem('theme', next);
 }
 
 // Init
 loadSessions();
-setInterval(loadSessions, 30000); // Auto refresh every 30s
+setInterval(loadSessions, 15000);
 </script>
 </body>
-</html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         </html>
