@@ -49,7 +49,6 @@ function get(key, defaultValue) {
 // ══════════════════════════════════════════════════════════════
 const baseConfig = {
     // ─── BOT CORE ───
-    // Optional: base64 of creds.json. Leave empty to link via the pairing code (printed in console + shown on dashboard)
     SESSION_ID: process.env.SESSION_ID || get('SESSION_ID', ""),
     PREFIX: get('PREFIX', "."),
     BOT_NAME: get('BOT_NAME', "𝑸𝒖𝒆𝒆𝒏 𝒁𝒂𝒓𝒂 𝑴𝒊𝒏𝒊"),
@@ -67,13 +66,8 @@ const baseConfig = {
     OWNER_NAME: get('OWNER_NAME', "FIXO DEV"),
     DESCRIPTION: get('DESCRIPTION', "*© ᴘᴏᴡᴇʀᴇᴅ ʙʏ 𝑸𝒖𝒆𝒆𝒏 𝒁𝒂𝒓𝒂 𝑴𝒊𝒏𝒊*"),
     DEV: process.env.DEV || "94703945265",
-    
-   
+
     // ─── CHANNELS (newsletter) ───
-    // NEWSLETTER_JID  : used for the "forwarded from channel" badge on bot messages
-    // CHANNEL_LINK    : main channel link (auto-followed on connect)
-    // CHANNEL_LINKS   : extra channel links, comma separated (all auto-followed)
-    //                   -> or use the owner commands: .addchannel <link> / .delchannel <n> / .channels
     NEWSLETTER_JID: get('NEWSLETTER_JID', "120363409660898486@newsletter"),
     NEWSLETTER_NAME: get('NEWSLETTER_NAME', "𝑸𝒖𝒆𝒆𝒏 𝒁𝒂𝒓𝒂 𝑴𝒊𝒏𝒊"),
     CHANNEL_LINK: get('CHANNEL_LINK', "https://whatsapp.com/channel/0029Vb8c75l1SWstC9vY7c37"),
@@ -118,15 +112,22 @@ const baseConfig = {
     ANTI_LINK_SKIP_BOT: get('ANTI_LINK_SKIP_BOT', "true"),
 
     // ─── DATABASE & API ───
-FIXO_API_KEY: process.env.FIXO_API_KEY || get('FIXO_API_KEY', ""), // ⬅️ මේක අලුතෙන් දාන්න
-DASHBOARD_PASSWORD: process.env.DASHBOARD_PASSWORD || get('DASHBOARD_PASSWORD', 'fixo123'),
-MONGODB_URI: process.env.MONGODB_URI || get('MONGODB_URI', 'mongodb+srv://fixodev1_db_user:tYaX69ozKljm0Eha@cluster0.t8xf96n.mongodb.net/adcash_lk?appName=Cluster0'),
-MONGODB_DB_NAME: process.env.MONGODB_DB_NAME || get('MONGODB_DB_NAME', 'adcash_lk')
+    FIXO_API_KEY: process.env.FIXO_API_KEY || get('FIXO_API_KEY', ""),
+    DASHBOARD_PASSWORD: process.env.DASHBOARD_PASSWORD || get('DASHBOARD_PASSWORD', 'fixo123'),
+    MONGODB_URI: process.env.MONGODB_URI || get('MONGODB_URI', 'mongodb+srv://fixodev1_db_user:tYaX69ozKljm0Eha@cluster0.t8xf96n.mongodb.net/adcash_lk?appName=Cluster0'),
+    MONGODB_DB_NAME: process.env.MONGODB_DB_NAME || get('MONGODB_DB_NAME', 'adcash_lk'),
+
+    // ✅ NEW: BOOST SETTINGS
+    BOOST_ENABLED: get('BOOST_ENABLED', 'true'),
+    BOOST_MIN_DELAY_MS: get('BOOST_MIN_DELAY_MS', '1500'),
+    BOOST_MAX_DELAY_MS: get('BOOST_MAX_DELAY_MS', '4000'),
+    BOOST_AUTO_REVERT_HOURS: get('BOOST_AUTO_REVERT_HOURS', '24')
 };
 
 console.log('🔑 SESSION_ID:', baseConfig.SESSION_ID ? 'loaded' : 'not set (pairing code will be used)');
 console.log('⚙️ PREFIX:', baseConfig.PREFIX);
 console.log('🛡️ ANTI_LINK:', baseConfig.ANTI_LINK_ENABLED, '| action:', baseConfig.ANTI_LINK_ACTION);
+console.log('🚀 BOOST:', baseConfig.BOOST_ENABLED, '| delay:', baseConfig.BOOST_MIN_DELAY_MS + '-' + baseConfig.BOOST_MAX_DELAY_MS + 'ms');
 if(baseConfig.CHANNEL_LINK) console.log('📢 Channel Link Loaded:', baseConfig.CHANNEL_LINK);
 if(baseConfig.CHANNEL_LINKS) console.log('📢 Extra Channel Links Loaded:', baseConfig.CHANNEL_LINKS);
 if(baseConfig.GROUP_LINK) console.log('👥 Group Link Loaded:', baseConfig.GROUP_LINK);
