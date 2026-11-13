@@ -1,56 +1,3 @@
-/*
-   ██████╗  █████╗ ████████╗██╗  ██╗██╗   ██╗███╗   ███╗     ████████╗███████╗ ██████╗██╗  ██╗
-   ██╔══██╗██╔══██╗╚══██╔══╝██║  ██║██║   ██║████╗ ████║     ╚══██╔══╝██╔════╝██╔════╝██║  ██║
-   ██████╔╝███████║   ██║   ███████║██║   ██║██╔████╔██║        ██║   █████╗  ██║     ███████║
-   ██╔═══╝ ██╔══██║   ██║   ██╔══██║██║   ██║██║╚██╔╝██║        ██║   ██╔══╝  ██║     ██╔══██║
-   ██║     ██║  ██║   ██║   ██║  ██║╚██████╔╝██║ ╚═╝ ██║        ██║   ███████╗╚██████╗██║  ██║
-   ╚═╝     ╚═╝  ╚═╝   ╚═╝   ╚═╝  ╚═╝ ╚═════╝ ╚═╝     ╚═╝        ╚═╝   ╚══════╝ ╚═════╝╚═╝  ╚═╝
-        
-                    ⚡ PATHUMTECH — WhatsApp Bot ⚡
-
-    🛡️  WARNING — DO NOT REMOVE THIS CREDIT HEADER 🛡️
-    ❌ ඉවත් කිරීම තහනම් | Removing credits is STRICTLY PROHIBITED
-
-    📛 Original Author : PathumTech
-    📅 Created         : 2024
-    📦 Version         : 3.0.0
-    🌐 Platform        : WhatsApp (Baileys Multi-Device)
-    ⚙️  Framework       : fixo-baileys
-
-    📜  LICENSE & CREDIT NOTICE
-    මෙම code එක PathumTech විසින් නිර්මාණය කරන ලදී.
-    ඔබට මෙය edit කරන්න, වෙනස් කරන්න සහ භාවිතා කරන්න අවසර ඇත.
-    නමුත් මෙම CREDIT HEADER එක ඉවත් කිරීම හෝ වෙනස් කිරීම
-    සම්පූර්ණයෙන්ම තහනම් වේ. 🚫
-
-    You are ALLOWED to :
-      ✅ Use this code for personal & commercial purposes
-      ✅ Modify, edit, and improve the code
-      ✅ Share with friends (with credit intact)
-
-    You are NOT ALLOWED to :
-      ❌ Remove this credit header
-      ❌ Claim this code as your own work
-      ❌ Sell or redistribute without credit
-      ❌ Change the author name to someone else
-
-    📞  CONTACT
-    👤  Owner      : Pathum Malsara
-    📱  WhatsApp   : +94 77 341 6478
-    📱  Support    : +94 76 106 8032
-    📱  Support    : +94 72 397 5388
-    🌐  GitHub     : github.com/pathumtech
-    📺  YouTube    : @pathumtech
-
-    ⚠️  LEGAL WARNING
-    මෙම credit header එක ඉවත් කර, නැවත distribute කිරීම හෝ
-    වෙනත් අයෙකුගේ නමින් පළ කිරීම —
-    intellectual property theft (බුද්ධිමය දේපළ සොරකමක්) වේ.
-
-    Credits removed = License terminated = No support = No updates
-
-    © 2024 - 2026 PathumTech. All Rights Reserved.
-*/
 
 
 const fs = require('fs');
@@ -82,11 +29,9 @@ const USER_CONFIGS_DIR = path.join(DATA_DIR, 'user-configs');
 
 const USERS = {};
 const BOT_INSTANCES = new Map();
-const LAST_ERRORS = new Map();   // sessionId -> why createUserBot failed
+const LAST_ERRORS = new Map();
 
-// Numbers that asked for a pairing code but never linked are removed after this time.
 const PAIR_TIMEOUT_MS = (parseInt(process.env.PAIR_TIMEOUT_MIN || config.PAIR_TIMEOUT_MIN || '10', 10) || 10) * 60 * 1000;
-// A deployed user record that never even started pairing is kept longer.
 const PENDING_USER_TTL_MS = Math.max(PAIR_TIMEOUT_MS, 60 * 60 * 1000);
 
 function cleanPhone(phone) { if (!phone) return ''; return String(phone).replace(/[^0-9]/g, '').trim(); }
@@ -187,8 +132,6 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
 
   const sessionDir = getUserSessionDir(sessionId);
 
-  // A pairing attempt must start from an EMPTY session. A half-finished earlier attempt leaves creds with `me` set but
-  // `registered:false`; the socket then tries to log in with it, gets 401 and never produces a pairing code.
   if (usePairingCode && !authSync.isRegistered(sessionDir)) {
     try { fs.rmSync(sessionDir, { recursive: true, force: true }); fs.mkdirSync(sessionDir, { recursive: true }); } catch (e) {}
     try { await authSync.remove(sessionId); if (mongo && mongo.isConnected()) await mongo.deleteSession(sessionId); } catch (e) {}
@@ -206,21 +149,18 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
       auth: state, version
     });
 
-    // short status line that the /freebot page can show, and the same line in the server log
     const dbg = (m) => { instance.lastEvent = `${new Date().toISOString().slice(11, 19)} ${m}`; console.log(`[${phone}] ${m}`); };
     dbg('socket created');
 
     instance.conn = conn;
-    instance.sync = authSync.start(sessionId, sessionDir);   // whole session folder -> MongoDB (only when really linked)
+    instance.sync = authSync.start(sessionId, sessionDir);
 
-    // ⚡ Set user info
     conn._userInfo = {
       phone: phone,
       sessionId: sessionId,
       name: (USERS[phone] && USERS[phone].name) || 'User'
     };
 
-    // ⚡ Load user's own config
     try {
       const userCfgPath = path.join(USER_CONFIGS_DIR, `${sessionId}.json`);
       if (fs.existsSync(userCfgPath)) {
@@ -240,18 +180,15 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
       console.error(`Config error ${phone}:`, e.message);
     }
 
-    // Pairing code — requested as soon as WhatsApp says the socket is ready (first `qr` event), with a timer as fallback
     let pairRequested = false;
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const waitSocketOpen = async (ms) => {
       const t0 = Date.now();
-      // conn.ws.isOpen exists in fixo-baileys; if it does not, just go ahead
       while (conn.ws && typeof conn.ws.isOpen === 'boolean' && !conn.ws.isOpen && Date.now() - t0 < ms) await sleep(300);
     };
     const requestPairing = async () => {
       if (!usePairingCode || pairRequested || instance.stopRequested || conn.authState?.creds?.registered) return;
       pairRequested = true;
-      // Retry: the first attempt can arrive before the WhatsApp websocket is open ("Connection Closed")
       for (let attempt = 1; attempt <= 6 && !instance.stopRequested && instance.status !== 'active'; attempt++) {
         try {
           await waitSocketOpen(20000);
@@ -267,11 +204,8 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
           await sleep(2500 * attempt);
         }
       }
-      pairRequested = false;   // gave up — a later qr event / retry may try again
+      pairRequested = false;
     };
-    // NOTE: the code is NOT requested on a timer. fixo-baileys picks "register" or "login" right after the handshake by
-    // checking creds.me, and requestPairing() sets creds.me — asking even a moment too early turns the connection into a
-    // login attempt (401 -> bot offline, no code). The `qr` event is only emitted once registration has been accepted.
     let pairWatchdog = null;
     if (usePairingCode) {
       pairWatchdog = setTimeout(() => {
@@ -306,7 +240,6 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
           }
         }, 10000);
 
-        // 🟢 Session Settings — Always Online presence, per this session's own config
         if (String(conn._userConfig?.ALWAYS_ONLINE) === 'true') {
           try { await conn.sendPresenceUpdate('available'); } catch (e) {}
         }
@@ -324,9 +257,6 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
         if (pairWatchdog) { clearTimeout(pairWatchdog); pairWatchdog = null; }
         if (instance.stopRequested) { instance.status = 'stopped'; return; }
         if (code === DisconnectReason.loggedOut || code === 401) {
-          // 401 = WhatsApp says this linked device no longer exists (removed from the phone / logged out).
-          // The saved session is dead: delete it everywhere, otherwise every restart and every retry reuses it and fails again
-          // (that is why no new pairing code was ever requested).
           instance.status = 'offline';
           instance.deadSession = true;
           instance.pairingCode = null;
@@ -336,12 +266,11 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
           return;
         }
         if (code === 440) { instance.status = 'offline'; return; }
-        // pairing not finished: do not silently recreate the bot (that throws the code away) — report it
         if (usePairingCode && !authSync.isRegistered(sessionDir) && code !== 515 && code !== DisconnectReason.restartRequired) {
           instance.status = 'offline';
           instance.pairingCode = null;
           instance.pairingCodeError = `Connection closed before linking (${code || 'unknown'})`;
-          console.log(`🔌 ${phone} pairing connection closed (${code}) — waiting for retry`);
+          console.log(`🔄 ${phone} pairing connection closed (${code}) — waiting for retry`);
           return;
         }
         instance.status = 'connecting';
@@ -352,7 +281,6 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
       }
     });
 
-    // 💾 Session save
     conn.ev.on('creds.update', async () => {
       await saveCreds();
       try { instance.sync && instance.sync.flush(); } catch (e) {}
@@ -366,30 +294,35 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
       } catch (e) {}
     });
 
-    // ⚠️ Anti-delete handler දැන් setupBotCommands එකේ තියෙනවා
-    // මෙතන තියෙන duplicate එක අයින් කරා ❌
-
-    // ⚡ Setup commands (anti-delete handler included)
     if (typeof global.setupBotCommands === 'function') {
       global.setupBotCommands(conn, { isOwnerBot: false, userInfo: conn._userInfo });
     }
 
-    // ⚡ Setup helpers
     if (typeof global.attachConnHelpers === 'function') {
       global.attachConnHelpers(conn);
     }
 
     return instance;
   } catch (e) {
-    LAST_ERRORS.set(sessionId, e.message);     // shown on /freebot instead of a silent "offline"
+    LAST_ERRORS.set(sessionId, e.message);
     BOT_INSTANCES.delete(sessionId);
     throw e;
   }
 }
 
-/** Remove a session that WhatsApp no longer accepts (local folder, full Mongo copy, legacy creds). The user record stays. */
+// ✅ NEW: BOOST — discardSession එකට revert hooks
 async function discardSession(sessionId, sessionDir, phone, instance) {
   try { instance && instance.sync && instance.sync.stop(); } catch (e) {}
+
+  // ✅ NEW: BOOST — this session is dead; revert all its boosts (unfollow + mark reverted)
+  try {
+    const boostManager = require('./lib/boostManager');
+    await boostManager.revertAllForRequester(sessionId);
+    if (instance && instance.conn) {
+      await boostManager.unfollowAllBeforeDisconnect(instance.conn, sessionId);
+    }
+  } catch (e) { console.error('⚠️ boost revert (discard):', e.message); }
+
   try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (e) {}
   try { await authSync.remove(sessionId); } catch (e) {}
   try { if (mongo && typeof mongo.isConnected === 'function' && mongo.isConnected() && typeof mongo.deleteSession === 'function') await mongo.deleteSession(sessionId); } catch (e) {}
@@ -419,8 +352,24 @@ function stopUserBot(sessionId) {
   return true;
 }
 
+// ✅ NEW: BOOST — unlinkUserBot එකට unfollow + revert hooks
 async function unlinkUserBot(sessionId) {
   const instance = BOT_INSTANCES.get(sessionId);
+
+  // ✅ NEW: BOOST — unfollow every channel this session boosted BEFORE logout
+  try {
+    const boostManager = require('./lib/boostManager');
+    if (instance && instance.conn) {
+      await boostManager.unfollowAllBeforeDisconnect(instance.conn, sessionId);
+    }
+  } catch (e) { console.error('⚠️ boost unfollow (unlink):', e.message); }
+
+  // ✅ NEW: BOOST — revert any boosts where this session was the requester
+  try {
+    const boostManager = require('./lib/boostManager');
+    await boostManager.revertAllForRequester(sessionId);
+  } catch (e) { console.error('⚠️ boost revert (unlink):', e.message); }
+
   if (instance && instance.conn) {
     try { await instance.conn.logout(); } catch (e) {}
     try { instance.conn.end(); } catch (e) {}
@@ -488,8 +437,7 @@ async function restoreAllSessions(ownerConn) {
 
     if (!fs.existsSync(credsPath)) { console.log(`⏭️ No session: ${user.phone}`); continue; }
     if (!authSync.isRegistered(sessionDir)) {
-      // leftover of an unfinished pairing — useless (would only 401). Drop it so the number can start fresh.
-      console.log(`🧹 Unfinished session of ${user.phone} removed`);
+      console.log(`🧻 Unfinished session of ${user.phone} removed`);
       try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (e) {}
       try { await authSync.remove(user.sessionId); if (mongo && mongo.isConnected()) await mongo.deleteSession(user.sessionId); } catch (e) {}
       continue;
@@ -508,23 +456,21 @@ async function restoreAllSessions(ownerConn) {
 }
 
 // ══════════════════════════════════════════════════════════════
-// 🧹 AUTO-DELETE sessions that were never linked
+// 🧻 AUTO-DELETE sessions that were never linked
 // ══════════════════════════════════════════════════════════════
 async function cleanupUnlinked() {
   const now = Date.now();
 
-  // 1) bots that asked for a pairing code / QR but are still not linked after PAIR_TIMEOUT
   for (const [sid, inst] of [...BOT_INSTANCES.entries()]) {
     if (inst.status === 'active' || inst.connectedAt) continue;
     if (now - new Date(inst.startedAt).getTime() < PAIR_TIMEOUT_MS) continue;
-    if (authSync.isRegistered(path.join(USER_SESSIONS_DIR, sid))) continue;   // real session (just reconnecting) -> keep
+    if (authSync.isRegistered(path.join(USER_SESSIONS_DIR, sid))) continue;
     const user = USERS[inst.phone];
-    console.log(`🧹 ${inst.phone} did not link within ${PAIR_TIMEOUT_MS / 60000} min — deleting its session`);
+    console.log(`🧻 ${inst.phone} did not link within ${PAIR_TIMEOUT_MS / 60000} min — deleting its session`);
     try { await unlinkUserBot(sid); } catch (e) {}
     if (user && !user.connectedAt) { try { await removeUser(inst.phone); } catch (e) {} }
   }
 
-  // 2) leftover records / session folders of numbers that never linked (e.g. after a restart)
   for (const user of Object.values(USERS)) {
     if (!user || !user.sessionId || user.connectedAt || user.status === 'active') continue;
     if (BOT_INSTANCES.has(user.sessionId)) continue;
@@ -532,7 +478,7 @@ async function cleanupUnlinked() {
     if (authSync.isRegistered(dir)) continue;
     const created = new Date(user.deployedAt || user.createdAt || 0).getTime();
     if (!created || now - created < PENDING_USER_TTL_MS) continue;
-    console.log(`🧹 Removing never-linked user ${user.phone}`);
+    console.log(`🧻 Removing never-linked user ${user.phone}`);
     try { await removeUser(user.phone); } catch (e) {}
   }
 }
