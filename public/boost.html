@@ -147,6 +147,9 @@ async function loadSessions() {
       document.getElementById('sessionText').textContent = 'No connected bots available.';
       document.getElementById('statusDot').className = 'dot';
       select.innerHTML = '<option value="">-- No bots --</option>';
+      
+      // ✅ මේක තමයි අලුතෙන් එකතු කළේ (Loading හිරවෙන එක නවත්තන්න)
+      document.getElementById('boostList').innerHTML = '<div style="color: var(--text-dim); font-size: 0.85em; text-align:center; padding: 20px 0;">No bots connected. Please wait...</div>';
       return;
     }
 
@@ -296,4 +299,4 @@ loadSessions();
 setInterval(loadSessions, 15000);
 </script>
 </body>
-  </html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                   </html>
