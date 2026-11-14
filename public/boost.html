@@ -30,6 +30,16 @@
 .badge{display:inline-block;padding:3px 8px;border-radius:6px;font-size:0.7em;font-weight:700;font-family:var(--font-mono)}
 .badge.active{background:var(--accent-glow);color:var(--accent);border:1px solid var(--accent)}
 .badge.reverted{background:rgba(239,68,68,0.1);color:var(--danger);border:1px solid var(--danger)}
+
+select.form-input {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1em;
+}
 </style>
 </head>
 <body>
@@ -144,28 +154,35 @@ async function loadSessions() {
     const select = document.getElementById('sessionSelect');
     
     if (!data.success || !data.sessions || data.sessions.length === 0) {
-      document.getElementById('sessionText').textContent = 'No connected bots available.';
+      document.getElementById('sessionText').textContent = 'No bots found in database.';
       document.getElementById('statusDot').className = 'dot';
       select.innerHTML = '<option value="">-- No bots --</option>';
-      
-      // ✅ මේක තමයි අලුතෙන් එකතු කළේ (Loading හිරවෙන එක නවත්තන්න)
-      document.getElementById('boostList').innerHTML = '<div style="color: var(--text-dim); font-size: 0.85em; text-align:center; padding: 20px 0;">No bots connected. Please wait...</div>';
+      document.getElementById('boostList').innerHTML = '<div style="color: var(--text-dim); font-size: 0.85em; text-align:center; padding: 20px 0;">No bots found. Deploy a bot first.</div>';
       return;
     }
 
-    document.getElementById('sessionText').textContent = `${data.sessions.length} Bot(s) connected.`;
-    document.getElementById('statusDot').className = 'dot on';
+    const activeBots = data.sessions.filter(s => s.status === 'active');
     
-    let options = '';
+    if (activeBots.length === 0) {
+      document.getElementById('sessionText').textContent = 'Bots are offline/connecting. Please wait...';
+      document.getElementById('statusDot').className = 'dot'; // Red dot
+    } else {
+      document.getElementById('sessionText').textContent = `${activeBots.length} Bot(s) active & ready.`;
+      document.getElementById('statusDot').className = 'dot on'; // Green dot
+    }
+    
+    let options = '<option value="">-- Select a Bot --</option>';
     data.sessions.forEach(sess => {
       const isOwner = sess.sessionId === '__owner__';
+      const statusIcon = sess.status === 'active' ? '🟢' : '🔴';
       const label = isOwner ? `Owner (+${sess.phone})` : `User (+${sess.phone})`;
-      options += `<option value="${sess.sessionId}">${label}</option>`;
+      const disabled = sess.status === 'active' ? '' : 'disabled';
+      options += `<option value="${sess.sessionId}" ${disabled}>${statusIcon} ${label} [${sess.status}]</option>`;
     });
     select.innerHTML = options;
 
-    if (!currentSessionId && data.sessions.length > 0) {
-      currentSessionId = data.sessions[0].sessionId;
+    if (!currentSessionId && activeBots.length > 0) {
+      currentSessionId = activeBots[0].sessionId;
       select.value = currentSessionId;
       loadBoosts();
     }
@@ -299,4 +316,4 @@ loadSessions();
 setInterval(loadSessions, 15000);
 </script>
 </body>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                   </html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          </html>
