@@ -30,17 +30,6 @@
 .badge{display:inline-block;padding:3px 8px;border-radius:6px;font-size:0.7em;font-weight:700;font-family:var(--font-mono)}
 .badge.active{background:var(--accent-glow);color:var(--accent);border:1px solid var(--accent)}
 .badge.reverted{background:rgba(239,68,68,0.1);color:var(--danger);border:1px solid var(--danger)}
-
-/* Dropdown Style */
-select.form-input {
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-  background-repeat: no-repeat;
-  background-position: right 1rem center;
-  background-size: 1em;
-}
 </style>
 </head>
 <body>
@@ -116,15 +105,9 @@ select.form-input {
         <input type="text" id="pollLink" placeholder="https://whatsapp.com/channel/0029.../123456789">
       </div>
       <div class="field">
-        <label>Select Poll Option Number</label>
-        <!-- Dropdown එක මෙතන -->
-        <select id="pollOptionIndex" class="form-input">
-          <option value="1">Option 1 (පළවෙනි එක)</option>
-          <option value="2">Option 2 (දෙවෙනි එක)</option>
-          <option value="3">Option 3 (තුන්වෙනි එක)</option>
-          <option value="4">Option 4 (හතරවෙනි එක)</option>
-        </select>
-        <p style="font-size:0.75em;color:var(--text-dim);margin-top:8px;font-family:var(--font-mono)">Bot will automatically fetch the text for this option.</p>
+        <label>Exact Poll Option Text</label>
+        <input type="text" id="pollOption" placeholder="Copy & paste exact option (e.g. හොඳින්)">
+        <p style="font-size:0.75em;color:var(--text-dim);margin-top:8px;font-family:var(--font-mono)">⚠️ Copy the exact text from the WhatsApp poll and paste it here.</p>
       </div>
       <button class="btn green" onclick="submitBoost('poll')" id="btnPoll" style="margin-top:10px">Boost Poll Votes</button>
     </div>
@@ -228,8 +211,7 @@ async function submitBoost(type) {
       body.emoji = document.getElementById('reactEmoji').value || '❤️';
     } else if (type === 'poll') {
       body.channelLink = document.getElementById('pollLink').value;
-      // Dropdown එකේ අගය (1, 2, 3) යවනවා
-      body.pollOptionIndex = document.getElementById('pollOptionIndex').value; 
+      body.pollOption = document.getElementById('pollOption').value;
     }
 
     const res = await fetch(url, {
@@ -314,4 +296,4 @@ loadSessions();
 setInterval(loadSessions, 15000);
 </script>
 </body>
-          </html>
+  </html>
