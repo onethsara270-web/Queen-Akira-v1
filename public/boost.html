@@ -16,9 +16,12 @@
 .tab-content{display:none;animation:fadeUp 0.4s ease}
 .tab-content.active{display:block}
 
-.status-box{padding:16px;background:var(--surface);border-radius:var(--radius-sm);margin-top:16px;font-size:0.85em;display:none;line-height:1.6;border:1px solid var(--border);font-family:var(--font-mono)}
-.status-box.ok{border-left:4px solid var(--accent);display:block;color:var(--text)}
-.status-box.err{border-left:4px solid var(--danger);display:block;color:var(--text)}
+/* ලස්සන Status Box එක */
+.status-box{padding:20px;background:var(--surface);border-radius:var(--radius-sm);margin-top:20px;font-size:0.9em;display:none;line-height:1.6;border-left:5px solid var(--border);font-family:var(--font-mono);animation:popIn 0.5s cubic-bezier(0.2,0.9,0.3,1.2)}
+.status-box.ok{border-left-color:var(--accent);display:block;background:var(--accent-glow);color:var(--text)}
+.status-box.err{border-left-color:var(--danger);display:block;background:rgba(239,68,68,0.1);color:var(--text)}
+.status-icon{font-size:2em; margin-bottom:8px; display:block;}
+@keyframes popIn{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
 
 .session-info{display:flex;align-items:center;justify-content:space-between;background:var(--surface);padding:16px;border-radius:var(--radius-sm);margin-bottom:20px;border:1px solid var(--border);flex-wrap:wrap;gap:10px}
 .session-info span{font-family:var(--font-mono);font-size:0.85em;font-weight:600}
@@ -31,6 +34,7 @@
 .badge.active{background:var(--accent-glow);color:var(--accent);border:1px solid var(--accent)}
 .badge.reverted{background:rgba(239,68,68,0.1);color:var(--danger);border:1px solid var(--danger)}
 
+/* Select Box Style */
 select.form-input {
   -webkit-appearance: none;
   -moz-appearance: none;
@@ -39,6 +43,34 @@ select.form-input {
   background-repeat: no-repeat;
   background-position: right 1rem center;
   background-size: 1em;
+}
+
+/* Loading Progress Bar */
+.progress-container {
+  width: 100%;
+  height: 6px;
+  background: var(--surface2);
+  border-radius: 10px;
+  margin-top: 15px;
+  overflow: hidden;
+  display: none;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+}
+.progress-bar {
+  width: 0%;
+  height: 100%;
+  background: var(--gradient);
+  background-size: 200% 200%;
+  border-radius: 10px;
+  animation: gradientShift 2s linear infinite, fillProgress 40s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+}
+@keyframes fillProgress {
+  0% { width: 0%; }
+  10% { width: 15%; }
+  30% { width: 40%; }
+  60% { width: 75%; }
+  90% { width: 90%; }
+  100% { width: 95%; }
 }
 </style>
 </head>
@@ -72,7 +104,7 @@ select.form-input {
         <span id="sessionText">Loading connected bots...</span>
       </div>
       <select id="sessionSelect" class="form-input" style="max-width:250px;padding:8px;margin:0" onchange="onSessionChange()">
-        <option value="">-- No bots connected --</option>
+        <option value="">-- No bots --</option>
       </select>
     </div>
   </div>
@@ -93,6 +125,7 @@ select.form-input {
         <p style="font-size:0.75em;color:var(--text-dim);margin-top:8px;font-family:var(--font-mono)">All connected bots will follow this channel.</p>
       </div>
       <button class="btn green" onclick="submitBoost('follow')" id="btnFollow" style="margin-top:10px">Boost Followers</button>
+      <div class="progress-container" id="progressFollow"><div class="progress-bar"></div></div>
     </div>
 
     <!-- REACT FORM -->
@@ -106,6 +139,7 @@ select.form-input {
         <input type="text" id="reactEmoji" placeholder="❤️" value="❤️">
       </div>
       <button class="btn green" onclick="submitBoost('react')" id="btnReact" style="margin-top:10px">Boost Reactions</button>
+      <div class="progress-container" id="progressReact"><div class="progress-bar"></div></div>
     </div>
 
     <!-- POLL FORM -->
@@ -116,13 +150,19 @@ select.form-input {
       </div>
       <div class="field">
         <label>Exact Poll Option Text</label>
-        <input type="text" id="pollOption" placeholder="Copy & paste exact option (e.g. හොඳින්)">
+        <!-- සිංහල වචන අයින් කරලා ඉංග්‍රීසි කළා -->
+        <input type="text" id="pollOption" placeholder="Copy & paste exact option (e.g. Option 1)">
         <p style="font-size:0.75em;color:var(--text-dim);margin-top:8px;font-family:var(--font-mono)">⚠️ Copy the exact text from the WhatsApp poll and paste it here.</p>
       </div>
       <button class="btn green" onclick="submitBoost('poll')" id="btnPoll" style="margin-top:10px">Boost Poll Votes</button>
+      <div class="progress-container" id="progressPoll"><div class="progress-bar"></div></div>
     </div>
 
-    <div id="statusBox" class="status-box"></div>
+    <!-- ලස්සන Result Box එක -->
+    <div id="statusBox" class="status-box">
+      <span class="status-icon" id="statusIcon">✅</span>
+      <div id="statusMessage"></div>
+    </div>
   </div>
 
   <!-- HISTORY -->
@@ -165,22 +205,24 @@ async function loadSessions() {
     
     if (activeBots.length === 0) {
       document.getElementById('sessionText').textContent = 'Bots are offline/connecting. Please wait...';
-      document.getElementById('statusDot').className = 'dot'; // Red dot
+      document.getElementById('statusDot').className = 'dot';
     } else {
       document.getElementById('sessionText').textContent = `${activeBots.length} Bot(s) active & ready.`;
-      document.getElementById('statusDot').className = 'dot on'; // Green dot
+      document.getElementById('statusDot').className = 'dot on';
     }
     
-    let options = '<option value="">-- Select a Bot --</option>';
+    // "-- Select a Bot --" අයින් කළා
+    let options = '';
     data.sessions.forEach(sess => {
       const isOwner = sess.sessionId === '__owner__';
       const statusIcon = sess.status === 'active' ? '🟢' : '🔴';
       const label = isOwner ? `Owner (+${sess.phone})` : `User (+${sess.phone})`;
       const disabled = sess.status === 'active' ? '' : 'disabled';
-      options += `<option value="${sess.sessionId}" ${disabled}>${statusIcon} ${label} [${sess.status}]</option>`;
+      options += `<option value="${sess.sessionId}" ${disabled}>${statusIcon} ${label}</option>`;
     });
     select.innerHTML = options;
 
+    // ඔටෝම පළවෙනි බොට්ව සිලෙක්ට් කරනවා
     if (!currentSessionId && activeBots.length > 0) {
       currentSessionId = activeBots[0].sessionId;
       select.value = currentSessionId;
@@ -207,18 +249,24 @@ function switchTab(type, btn) {
 // Submit Boost
 async function submitBoost(type) {
   if (!currentSessionId) {
-    showToast('Please connect a bot first!', 'error');
+    showToast('Please select a connected bot first!', 'error');
     return;
   }
 
   const btn = document.getElementById(`btn${type.charAt(0).toUpperCase() + type.slice(1)}`);
   const statusBox = document.getElementById('statusBox');
+  const progressBar = document.getElementById(`progress${type.charAt(0).toUpperCase() + type.slice(1)}`);
   
   btn.disabled = true;
   const originalText = btn.innerHTML;
   btn.innerHTML = '<span class="loading"></span> Processing...';
-  statusBox.className = 'status-box';
   statusBox.style.display = 'none';
+  
+  // Progress Bar එක පෙන්නනවා
+  progressBar.style.display = 'block';
+  progressBar.firstElementChild.style.animation = 'none'; // Reset animation
+  void progressBar.firstElementChild.offsetWidth; // Trigger reflow
+  progressBar.firstElementChild.style.animation = 'gradientShift 2s linear infinite, fillProgress 40s cubic-bezier(0.1, 0.8, 0.2, 1) forwards';
 
   try {
     let url = `/api/boost/${type}`;
@@ -241,15 +289,19 @@ async function submitBoost(type) {
     });
 
     const data = await res.json();
+    
+    // වැඩේ ඉවර නිසා Progress bar එක හංගනවා
+    progressBar.style.display = 'none';
 
     if (data.success) {
       statusBox.className = 'status-box ok';
-      statusBox.innerHTML = `
-        <b>✅ Boost Successful!</b><br>
-        Channel: ${data.channelName || 'Unknown'}<br>
-        Successful: <b>${data.successful}/${data.total}</b> bots<br>
-        Failed: <b>${data.failed}</b> bots
-        ${data.errors && data.errors.length > 0 ? `<br><span style="color:var(--danger);font-size:0.9em">Errors: ${data.errors.join(', ')}</span>` : ''}
+      document.getElementById('statusIcon').textContent = '🎉';
+      document.getElementById('statusMessage').innerHTML = `
+        <b style="color:var(--accent); font-size:1.2em;">Boost Completed!</b><br><br>
+        <b>Channel:</b> ${data.channelName || 'Unknown'}<br>
+        <b>Successful:</b> ${data.successful}/${data.total} bots<br>
+        <b>Failed:</b> ${data.failed} bots
+        ${data.errors && data.errors.length > 0 ? `<br><br><span style="color:var(--danger);font-size:0.85em">Errors: ${data.errors.join(', ')}</span>` : ''}
       `;
       loadBoosts();
       showToast('Boost completed successfully!');
@@ -257,8 +309,10 @@ async function submitBoost(type) {
       throw new Error(data.error || 'Unknown error occurred');
     }
   } catch (error) {
+    progressBar.style.display = 'none';
     statusBox.className = 'status-box err';
-    statusBox.innerHTML = `<b>❌ Error:</b> ${error.message}`;
+    document.getElementById('statusIcon').textContent = '❌';
+    document.getElementById('statusMessage').innerHTML = `<b>Error:</b> ${error.message}`;
     showToast(error.message, 'error');
   } finally {
     btn.disabled = false;
@@ -316,4 +370,4 @@ loadSessions();
 setInterval(loadSessions, 15000);
 </script>
 </body>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          </html>
+        </html>
