@@ -47,7 +47,7 @@ cmd({
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
         // Fixo API Call
-        const apiUrl = `https://fixo-api-p15j.onrender.com/api/instagram?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
+        const apiUrl = `https://fixo-api-production-7d421257.up.railway.app/api/instagram?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
         
         const res = await axios.get(apiUrl, {
             responseType: 'arraybuffer',
