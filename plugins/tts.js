@@ -40,7 +40,7 @@ cmd({
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
         // API එකට lang එකත් එක්කම යවනවා
-        const apiUrl = `https://fixo-api-p15j.onrender.com/api/tts?text=${encodeURIComponent(textToSpeak)}&lang=${lang}&api_key=${FIXO_API_KEY}`;
+        const apiUrl = `https://fixo-api-production-7d421257.up.railway.app/api/tts?text=${encodeURIComponent(textToSpeak)}&lang=${lang}&api_key=${FIXO_API_KEY}`;
         const res = await axios.get(apiUrl, { responseType: 'arraybuffer', timeout: 30000 });
 
         const buffer = Buffer.from(res.data, 'binary');
