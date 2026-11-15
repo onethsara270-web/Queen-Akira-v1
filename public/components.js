@@ -1,7 +1,5 @@
 // public/components.js
-
 function renderBottomNav(activePage) {
-    // පරණ menu එකක් තියෙනවා නම් ඒක අයින් කරනවා
     const existing = document.querySelector('.bottom-nav');
     if (existing) existing.remove();
 
@@ -91,6 +89,5 @@ function renderBottomNav(activePage) {
         </a>
     </div>
     `;
-    
     document.body.insertAdjacentHTML('beforeend', navHTML);
 }
