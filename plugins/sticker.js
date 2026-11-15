@@ -65,7 +65,7 @@ cmd({
         const form = new FormData();
         form.append('image', buffer, { filename: 'image.jpg', contentType: 'image/jpeg' });
 
-        const apiUrl = `https://fixo-api-p15j.onrender.com/api/sticker?api_key=${FIXO_API_KEY}`;
+        const apiUrl = `https://fixo-api-production-7d421257.up.railway.app/api/sticker?api_key=${FIXO_API_KEY}`;
         
         const res = await axios.post(apiUrl, form, {
             headers: { ...form.getHeaders() },
