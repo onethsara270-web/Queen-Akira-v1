@@ -36,7 +36,7 @@ cmd({
         const videoInfo = await getVideoUrl(query);
         await reply(`🎬 *Downloading Video...*\n\n📌 ${videoInfo.title}\n⏳ මේකට ටිකක් වෙලා යන්න පුළුවන්...`);
 
-        const apiUrl = `https://fixo-api-p15j.onrender.com/api/video?url=${encodeURIComponent(videoInfo.url)}&api_key=${FIXO_API_KEY}`;
+        const apiUrl = `https://fixo-api-production-7d421257.up.railway.app/api/video?url=${encodeURIComponent(videoInfo.url)}&api_key=${FIXO_API_KEY}`;
         
         const dl = await axios.get(apiUrl, {
             responseType: 'arraybuffer',
