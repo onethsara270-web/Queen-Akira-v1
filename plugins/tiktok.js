@@ -53,7 +53,7 @@ cmd({
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
         // ── Fixo API Call ─────────────────────────────
-        const apiUrl = `https://fixo-api-p15j.onrender.com/api/tiktok?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
+        const apiUrl = `https://fixo-api-production-7d421257.up.railway.app/api/tiktok?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
         
         const { data } = await axios.get(apiUrl, {
             timeout: API_TIMEOUT,
