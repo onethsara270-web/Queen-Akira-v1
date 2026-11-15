@@ -9,13 +9,6 @@
 <link rel="stylesheet" href="/shared.css">
 <script>const savedTheme = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-theme', savedTheme);</script>
 <style>
-/* Boost page specific CSS */
-.tabs{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap}
-.tab-btn{padding:10px 16px;border-radius:var(--radius-sm);font-size:0.85em;font-weight:700;background:var(--surface);border:1.5px solid var(--border);font-family:var(--font-mono);color:var(--text-mid);cursor:pointer;transition:0.3s;display:flex;align-items:center;gap:6px}
-.tab-btn.active{background:var(--accent);color:#fff;border-color:transparent;box-shadow:0 4px 16px var(--accent-glow)}
-.tab-content{display:none;animation:fadeUp 0.4s ease}
-.tab-content.active{display:block}
-
 /* ලස්සන Status Box එක */
 .status-box{padding:20px;background:var(--surface);border-radius:var(--radius-sm);margin-top:20px;font-size:0.9em;display:none;line-height:1.6;border-left:5px solid var(--border);font-family:var(--font-mono);animation:popIn 0.5s cubic-bezier(0.2,0.9,0.3,1.2)}
 .status-box.ok{border-left-color:var(--accent);display:block;background:var(--accent-glow);color:var(--text)}
@@ -24,31 +17,20 @@
 @keyframes popIn{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
 
 .session-info{display:flex;align-items:center;justify-content:space-between;background:var(--surface);padding:16px;border-radius:var(--radius-sm);margin-bottom:20px;border:1px solid var(--border);flex-wrap:wrap;gap:10px}
-.session-info span{font-family:var(--font-mono);font-size:0.85em;font-weight:600}
-.dot{width:10px;height:10px;border-radius:50%;display:inline-block;background:var(--danger);box-shadow:0 0 10px var(--danger)}
+.session-info span{font-family:var(--font-mono);font-size:0.9em;font-weight:700}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block;background:var(--danger);box-shadow:0 0 10px var(--danger)}
 .dot.on{background:var(--accent);box-shadow:0 0 10px var(--accent)}
 
 .boost-item{padding:16px;background:var(--surface);border-radius:var(--radius-sm);margin-bottom:12px;font-size:0.85em;border:1px solid var(--border);transition:all 0.3s}
 .boost-item:hover{border-color:var(--border-active);transform:translateY(-2px)}
-.badge{display:inline-block;padding:3px 8px;border-radius:6px;font-size:0.7em;font-weight:700;font-family:var(--font-mono)}
+.badge{display:inline-block;padding:4px 10px;border-radius:6px;font-size:0.75em;font-weight:800;font-family:var(--font-mono)}
 .badge.active{background:var(--accent-glow);color:var(--accent);border:1px solid var(--accent)}
 .badge.reverted{background:rgba(239,68,68,0.1);color:var(--danger);border:1px solid var(--danger)}
-
-/* Select Box Style */
-select.form-input {
-  -webkit-appearance: none;
-  -moz-appearance: none;
-  appearance: none;
-  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
-  background-repeat: no-repeat;
-  background-position: right 1rem center;
-  background-size: 1em;
-}
 
 /* Loading Progress Bar */
 .progress-container {
   width: 100%;
-  height: 6px;
+  height: 8px;
   background: var(--surface2);
   border-radius: 10px;
   margin-top: 15px;
@@ -60,9 +42,8 @@ select.form-input {
   width: 0%;
   height: 100%;
   background: var(--gradient);
-  background-size: 200% 200%;
   border-radius: 10px;
-  animation: gradientShift 2s linear infinite, fillProgress 40s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+  animation: fillProgress 40s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
 }
 @keyframes fillProgress {
   0% { width: 0%; }
@@ -79,56 +60,51 @@ select.form-input {
 
 <div class="container" style="max-width:800px;position:relative;z-index:1">
   
-  <!-- HEADER -->
   <div class="header">
     <div class="brand">
       <div class="mini-logo">
         <svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
       </div>
-      <div style="font-size:1.2em;font-weight:700;color:var(--text);font-family:var(--font-display)">Boost Center</div>
+      <div style="font-size:1.2em;font-weight:800;color:var(--text);font-family:var(--font-display)">Boost Center</div>
     </div>
     <div class="nav">
-      <a href="/dashboard?key={{KEY}}"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg> Dashboard</a>
-      <a href="/settings?key={{KEY}}"><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg> Settings</a>
-      <a href="/boost?key={{KEY}}" class="active"><svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/></svg> Boost</a>
-      <a href="/login"><svg class="icon" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Logout</a>
+      <a href="/dashboard?key={{KEY}}">Dashboard</a>
+      <a href="/settings?key={{KEY}}">Settings</a>
+      <a href="/boost?key={{KEY}}" class="active">Boost</a>
+      <a href="/login">Logout</a>
       <button class="theme-btn" onclick="toggleTheme()"><svg class="icon sun-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg><svg class="icon moon-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
     </div>
   </div>
 
-  <!-- SESSION SELECTION -->
   <div class="card" style="margin-bottom:20px">
     <div class="session-info" id="sessionInfo">
       <div style="display:flex;align-items:center;gap:10px">
         <div class="dot" id="statusDot"></div>
         <span id="sessionText">Loading connected bots...</span>
       </div>
-      <select id="sessionSelect" class="form-input" style="max-width:250px;padding:8px;margin:0" onchange="onSessionChange()">
+      <select id="sessionSelect" class="form-input" style="max-width:250px;padding:10px;margin:0" onchange="onSessionChange()">
         <option value="">-- No bots --</option>
       </select>
     </div>
   </div>
 
-  <!-- BOOST FORMS -->
   <div class="card">
-    <div class="tabs">
+    <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap" class="tabs-nav">
       <button class="tab-btn active" data-type="follow" onclick="switchTab('follow', this)">👥 Followers</button>
       <button class="tab-btn" data-type="react" onclick="switchTab('react', this)">❤️ Reactions</button>
       <button class="tab-btn" data-type="poll" onclick="switchTab('poll', this)">📊 Poll Votes</button>
     </div>
 
-    <!-- FOLLOW FORM -->
     <div id="tab-follow" class="tab-content active">
       <div class="field">
         <label>Channel Link</label>
         <input type="text" id="followLink" placeholder="https://whatsapp.com/channel/0029...">
-        <p style="font-size:0.75em;color:var(--text-dim);margin-top:8px;font-family:var(--font-mono)">All connected bots will follow this channel.</p>
+        <p style="font-size:0.8em;color:var(--text-dim);margin-top:8px;font-family:var(--font-mono)">All connected bots will follow this channel.</p>
       </div>
       <button class="btn green" onclick="submitBoost('follow')" id="btnFollow" style="margin-top:10px">Boost Followers</button>
       <div class="progress-container" id="progressFollow"><div class="progress-bar"></div></div>
     </div>
 
-    <!-- REACT FORM -->
     <div id="tab-react" class="tab-content">
       <div class="field">
         <label>Channel Post URL (Must include Post ID)</label>
@@ -142,7 +118,6 @@ select.form-input {
       <div class="progress-container" id="progressReact"><div class="progress-bar"></div></div>
     </div>
 
-    <!-- POLL FORM -->
     <div id="tab-poll" class="tab-content">
       <div class="field">
         <label>Channel Poll Post URL (Must include Post ID)</label>
@@ -151,24 +126,22 @@ select.form-input {
       <div class="field">
         <label>Exact Poll Option Text</label>
         <input type="text" id="pollOption" placeholder="Copy & paste exact option (e.g. Option 1)">
-        <p style="font-size:0.75em;color:var(--text-dim);margin-top:8px;font-family:var(--font-mono)">⚠️ Copy the exact text from the WhatsApp poll and paste it here.</p>
+        <p style="font-size:0.8em;color:var(--text-dim);margin-top:8px;font-family:var(--font-mono)">⚠️ Copy the exact text from the WhatsApp poll and paste it here.</p>
       </div>
       <button class="btn green" onclick="submitBoost('poll')" id="btnPoll" style="margin-top:10px">Boost Poll Votes</button>
       <div class="progress-container" id="progressPoll"><div class="progress-bar"></div></div>
     </div>
 
-    <!-- ලස්සන Result Box එක -->
     <div id="statusBox" class="status-box">
       <span class="status-icon" id="statusIcon">✅</span>
       <div id="statusMessage"></div>
     </div>
   </div>
 
-  <!-- HISTORY -->
   <div class="card">
-    <h3><svg class="icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Recent Boosts</h3>
+    <h3>Recent Boosts</h3>
     <div id="boostList" style="margin-top:15px;max-height:350px;overflow-y:auto;padding-right:5px">
-      <div style="color: var(--text-dim); font-size: 0.85em; text-align:center; padding: 20px 0;"><span class="loading"></span> Loading...</div>
+      <div style="color: var(--text-dim); font-size: 0.9em; text-align:center; padding: 20px 0;"><span class="loading"></span> Loading...</div>
     </div>
   </div>
 
@@ -176,7 +149,6 @@ select.form-input {
 <div id="toast" class="toast"></div>
 
 <script>
-// ✅ Login Check (Boost page protection)
 if (!window.location.search.includes('key=')) {
     window.location.href = '/login';
 }
@@ -190,7 +162,6 @@ function showToast(msg, type='success') {
   setTimeout(() => t.classList.remove('show'), 3000);
 }
 
-// Load Sessions
 async function loadSessions() {
   try {
     const res = await fetch('/api/boost/sessions');
@@ -201,7 +172,7 @@ async function loadSessions() {
       document.getElementById('sessionText').textContent = 'No bots found in database.';
       document.getElementById('statusDot').className = 'dot';
       select.innerHTML = '<option value="">-- No bots --</option>';
-      document.getElementById('boostList').innerHTML = '<div style="color: var(--text-dim); font-size: 0.85em; text-align:center; padding: 20px 0;">No bots found. Deploy a bot first.</div>';
+      document.getElementById('boostList').innerHTML = '<div style="color: var(--text-dim); font-size: 0.9em; text-align:center; padding: 20px 0;">No bots found. Deploy a bot first.</div>';
       return;
     }
 
@@ -248,7 +219,6 @@ function switchTab(type, btn) {
   document.getElementById('statusBox').style.display = 'none';
 }
 
-// Submit Boost
 async function submitBoost(type) {
   if (!currentSessionId) {
     showToast('Please select a connected bot first!', 'error');
@@ -267,7 +237,7 @@ async function submitBoost(type) {
   progressBar.style.display = 'block';
   progressBar.firstElementChild.style.animation = 'none';
   void progressBar.firstElementChild.offsetWidth;
-  progressBar.firstElementChild.style.animation = 'gradientShift 2s linear infinite, fillProgress 40s cubic-bezier(0.1, 0.8, 0.2, 1) forwards';
+  progressBar.firstElementChild.style.animation = 'fillProgress 40s cubic-bezier(0.1, 0.8, 0.2, 1) forwards';
 
   try {
     let url = `/api/boost/${type}`;
@@ -319,7 +289,6 @@ async function submitBoost(type) {
   }
 }
 
-// Load History
 async function loadBoosts() {
   if (!currentSessionId) return;
   const listEl = document.getElementById('boostList');
@@ -329,7 +298,7 @@ async function loadBoosts() {
     const data = await res.json();
     
     if (!data.success || !data.boosts || data.boosts.length === 0) {
-      listEl.innerHTML = '<div style="color: var(--text-dim); font-size: 0.85em; text-align:center; padding: 20px 0;">No boosts yet.</div>';
+      listEl.innerHTML = '<div style="color: var(--text-dim); font-size: 0.9em; text-align:center; padding: 20px 0;">No boosts yet.</div>';
       return;
     }
 
@@ -353,7 +322,7 @@ async function loadBoosts() {
       `;
     }).join('');
   } catch (err) {
-    listEl.innerHTML = '<div style="color: var(--danger); font-size: 0.85em; text-align:center;">Failed to load history.</div>';
+    listEl.innerHTML = '<div style="color: var(--danger); font-size: 0.9em; text-align:center;">Failed to load history.</div>';
   }
 }
 
@@ -364,9 +333,11 @@ function toggleTheme() {
   localStorage.setItem('theme', next);
 }
 
-// Init
 loadSessions();
 setInterval(loadSessions, 15000);
 </script>
+
+<script src="/components.js"></script>
+<script>renderBottomNav('boost');</script>
 </body>
-                                                          </html>
+      </html>
