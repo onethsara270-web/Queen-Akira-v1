@@ -36,7 +36,7 @@ cmd({
         const videoInfo = await getVideoUrl(query);
         await reply(`🎵 *Downloading Audio...*\n\n📌 ${videoInfo.title}`);
 
-        const apiUrl = `https://fixo-api-p15j.onrender.com/api/song?url=${encodeURIComponent(videoInfo.url)}&api_key=${FIXO_API_KEY}`;
+        const apiUrl = `https://fixo-api-production-7d421257.up.railway.app/api/song?url=${encodeURIComponent(videoInfo.url)}&api_key=${FIXO_API_KEY}`;
         
         // කෙලින්ම ෆයිල් එක බෆර් කරගන්නවා
         const dl = await axios.get(apiUrl, {
