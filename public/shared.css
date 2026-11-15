@@ -5,7 +5,6 @@
 
 *{margin:0;padding:0;box-sizing:border-box}
 
-/* ☀️ LIGHT THEME (Default) */
 :root {
   --bg: #f8fafc; --bg2: #f1f5f9;
   --surface: #ffffff; --surface2: #f8fafc;
@@ -20,43 +19,11 @@
   --font-display: 'Space Grotesk', sans-serif; --font-body: 'Manrope', sans-serif; --font-mono: 'IBM Plex Mono', monospace;
 }
 
-/* 🌙 DARK THEME (Optional) */
-[data-theme="dark"] {
-  --bg: #0b0f19; --bg2: #111827;
-  --surface: #1f2937; --surface2: #374151;
-  --border: #374151; --border-active: #818cf8;
-  --text: #f9fafb; --text-mid: #d1d5db; --text-dim: #9ca3af;
-  --accent: #818cf8; --accent-2: #22d3ee; --accent-3: #fbbf24;
-  --accent-glow: rgba(129,140,248,0.2); --accent-glow-strong: rgba(129,140,248,0.4);
-  --gradient: linear-gradient(135deg, #818cf8 0%, #a78bfa 50%, #22d3ee 100%);
-  --glass-bg: rgba(31,41,55,0.8); --glass-border: rgba(55,65,81,0.8);
-  --glass-shadow: 0 10px 30px rgba(0,0,0,0.3);
-}
-
 html,body{
   font-family:var(--font-body); background:var(--bg); color:var(--text);
   min-height:100vh; overflow-x:hidden; -webkit-font-smoothing:antialiased;
   position:relative; transition: background 0.4s ease, color 0.4s ease;
 }
-
-/* Background Effects */
-body::before{
-  content:'';position:fixed;inset:0;z-index:-2;
-  background-image: radial-gradient(var(--border) 1px, transparent 1px);
-  background-size: 30px 30px;
-  mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
-  -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 80%);
-  opacity: 0.5; pointer-events:none;
-}
-
-/* Typography */
-h1,h2,h3,h4,h5,h6,.logo-text{font-family:var(--font-display);font-weight:700;color:var(--text)}
-.logo-text{
-  font-size:2em; letter-spacing:-0.5px;
-  background:var(--gradient); -webkit-background-clip:text; -webkit-text-fill-color:transparent;
-}
-.subtitle{text-align:center;color:var(--text-dim);font-size:0.75em;letter-spacing:2px;text-transform:uppercase;margin-bottom:24px;font-weight:700;font-family:var(--font-mono)}
-.icon{width:1.2em;height:1.2em;display:inline-block;vertical-align:middle;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;transition:all 0.3s ease}
 
 /* Animations */
 @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
