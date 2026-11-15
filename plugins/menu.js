@@ -116,7 +116,7 @@ async (conn, mek, m, { from, sender, pushname, isGroup, q, reply }) => {
         const names = Object.keys(cats).sort((a, b) => (a === 'main' ? -1 : b === 'main' ? 1 : a.localeCompare(b))).slice(0, MAX_CARDS);
         const cards = names.map(cat => ({
             body: cardText(cat, cats[cat], prefix),
-            footer: `${botName} OFFICIAL WA BOT`,
+            footer: `${botName} 🧚`,
             id: `${prefix}menu ${cat}`
         }));
 
