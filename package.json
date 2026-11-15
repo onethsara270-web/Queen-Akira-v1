@@ -60,7 +60,10 @@
     "api-dylux": "1.8.5",
     "@mrnima/tiktok-downloader": "1.0.0",
     "@mrnima/facebook-downloader": "1.0.0",
-    "mrnima-moviedl": "1.0.0"
+    "mrnima-moviedl": "1.0.0",
+    "megajs": "^1.1.0",
+    "similarity": "^1.2.1",
+    "node-webpmux": "^3.2.4"
   },
   "author": "FIXO DEV",
   "engines": {
