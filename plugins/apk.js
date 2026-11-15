@@ -22,7 +22,7 @@ cmd({
     try {
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
-        const apiUrl = `https://fixo-api-p15j.onrender.com/api/apk?q=${encodeURIComponent(q)}&api_key=${FIXO_API_KEY}`;
+        const apiUrl = `https://fixo-api-production-7d421257.up.railway.app/api/apk?q=${encodeURIComponent(q)}&api_key=${FIXO_API_KEY}`;
         const res = await axios.get(apiUrl, { timeout: 30000, validateStatus: s => s < 500 });
         
         if (!res.data.success || !res.data.url) {
