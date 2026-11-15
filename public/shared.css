@@ -31,6 +31,9 @@ html,body{
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
 
+/* Icons */
+.icon{width:1.2em;height:1.2em;display:inline-block;vertical-align:middle;fill:none !important;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0;transition:all 0.3s ease}
+
 /* Glass Cards */
 .glass-card,.card{
   background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
@@ -91,9 +94,31 @@ html,body{
 .nav a.active { background: var(--accent); border-color: var(--accent); color: #fff; box-shadow: 0 4px 15px var(--accent-glow); }
 .userinfo { color: var(--text); font-size: 0.8em; padding: 8px 16px; background: var(--surface2); border-radius: 20px; border: 1px solid var(--border); font-weight: 700; font-family: var(--font-mono); display: flex; align-items: center; gap: 6px; }
 
+/* Logo (The Big Icon) */
+.emoji-logo {
+  width: 80px; height: 80px; font-size: 2.5em;
+  margin: 0 auto 20px; border-radius: 20px;
+  background: var(--accent-glow);
+  display: flex; align-items: center; justify-content: center;
+  color: var(--accent); border: 1.5px solid var(--border-active);
+  animation: float 3s ease-in-out infinite;
+  box-shadow: 0 10px 25px var(--accent-glow);
+}
+.emoji-logo svg {
+  width: 40px !important; height: 40px !important;
+  fill: none !important; stroke: currentColor !important;
+  stroke-width: 2 !important;
+}
+.mini-logo {
+  width: 46px; height: 46px; font-size: 1.4em; border-radius: 12px;
+  background: var(--accent-glow); border: 1px solid var(--border-active);
+  display: flex; align-items: center; justify-content: center; color: var(--accent);
+}
+.mini-logo svg { width: 24px !important; height: 24px !important; fill: none !important; stroke: currentColor !important; stroke-width: 2 !important; }
+
 /* Containers */
 .wrapper { max-width: 500px; margin: 0 auto; padding: 24px 16px; position: relative; z-index: 1; }
-.container { max-width: 940px; margin: 0 auto; padding: 24px 16px 100px; position: relative; z-index: 1; } /* bottom padding for menu */
+.container { max-width: 940px; margin: 0 auto; padding: 24px 16px 100px; position: relative; z-index: 1; }
 
 /* Toast */
 .toast { position: fixed; bottom: 100px; left: 50%; transform: translateX(-50%) translateY(50px); padding: 12px 24px; border-radius: 50px; font-weight: 700; font-size: 0.9em; font-family: var(--font-mono); z-index: 9999; background: var(--surface); border: 2px solid var(--accent); color: var(--accent); box-shadow: 0 10px 30px rgba(0,0,0,0.1); transition: 0.4s; opacity: 0; pointer-events: none; }
