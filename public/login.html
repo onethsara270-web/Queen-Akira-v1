@@ -68,4 +68,38 @@
   </div>
 
   <a href="https://www.npmjs.com/package/fixo-baileys" target="_blank" style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 16px; padding: 14px; background: rgba(204, 53, 53, 0.08); border: 1.5px solid #cc3535; border-radius: 12px; text-decoration: none; color: #cc3535; font-size: 0.9em; font-weight: 800; font-family: var(--font-mono);">
-    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M0 0v24h24v-24h-24zm19.2 19.2h-14.4v-14.4h14
+    <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M0 0v24h24v-24h-24zm19.2 19.2h-14.4v-14.4h14.4v14.4zm-9.6-11.52v6.72h2.88v-3.84h1.92v3.84h1.92v-6.72h-6.72z"/></svg>
+    Powered by fixo-baileys
+  </a>
+
+</div>
+<script>
+async function handleLogin(e){
+  e.preventDefault();
+  const pass = document.getElementById('pass').value.trim();
+  const btn = document.getElementById('btn'); const btnText = document.getElementById('btnText');
+  const loader = document.getElementById('loader'); const error = document.getElementById('error');
+  error.classList.remove('show');
+  if(!pass){error.textContent='⚠️ Enter your password';error.classList.add('show');return false}
+  btn.disabled=true;btnText.style.display='none';loader.style.display='inline-block';
+  try {
+    const r = await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pass})});
+    const d = await r.json();
+    if(d.success){
+      if(d.type === 'owner') window.location.href='/dashboard?key='+encodeURIComponent(pass);
+      else window.location.href='/user/settings?key='+encodeURIComponent(pass);
+      return false;
+    }
+    error.textContent='❌ ' + (d.error || 'Wrong password!'); error.classList.add('show');
+  } catch(err) { error.textContent='❌ Connection error'; error.classList.add('show'); }
+  btn.disabled=false;btnText.style.display='inline';loader.style.display='none';
+  document.getElementById('pass').value='';document.getElementById('pass').focus();
+  return false;
+}
+document.getElementById('pass').addEventListener('input', function(){ this.value = this.value.replace(/[^0-9a-zA-Z]/g, '').slice(0, 20); });
+function toggleTheme() { const root = document.documentElement; const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light'; root.setAttribute('data-theme', next); localStorage.setItem('theme', next); }
+</script>
+
+<script src="/components.js"></script>
+<script>renderBottomNav('dashboard');</script>
+</body></html>
