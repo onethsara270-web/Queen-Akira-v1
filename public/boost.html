@@ -150,7 +150,6 @@ select.form-input {
       </div>
       <div class="field">
         <label>Exact Poll Option Text</label>
-        <!-- සිංහල වචන අයින් කරලා ඉංග්‍රීසි කළා -->
         <input type="text" id="pollOption" placeholder="Copy & paste exact option (e.g. Option 1)">
         <p style="font-size:0.75em;color:var(--text-dim);margin-top:8px;font-family:var(--font-mono)">⚠️ Copy the exact text from the WhatsApp poll and paste it here.</p>
       </div>
@@ -177,6 +176,11 @@ select.form-input {
 <div id="toast" class="toast"></div>
 
 <script>
+// ✅ Login Check (Boost page protection)
+if (!window.location.search.includes('key=')) {
+    window.location.href = '/login';
+}
+
 let currentSessionId = null;
 
 function showToast(msg, type='success') {
@@ -211,7 +215,6 @@ async function loadSessions() {
       document.getElementById('statusDot').className = 'dot on';
     }
     
-    // "-- Select a Bot --" අයින් කළා
     let options = '';
     data.sessions.forEach(sess => {
       const isOwner = sess.sessionId === '__owner__';
@@ -222,7 +225,6 @@ async function loadSessions() {
     });
     select.innerHTML = options;
 
-    // ඔටෝම පළවෙනි බොට්ව සිලෙක්ට් කරනවා
     if (!currentSessionId && activeBots.length > 0) {
       currentSessionId = activeBots[0].sessionId;
       select.value = currentSessionId;
@@ -262,10 +264,9 @@ async function submitBoost(type) {
   btn.innerHTML = '<span class="loading"></span> Processing...';
   statusBox.style.display = 'none';
   
-  // Progress Bar එක පෙන්නනවා
   progressBar.style.display = 'block';
-  progressBar.firstElementChild.style.animation = 'none'; // Reset animation
-  void progressBar.firstElementChild.offsetWidth; // Trigger reflow
+  progressBar.firstElementChild.style.animation = 'none';
+  void progressBar.firstElementChild.offsetWidth;
   progressBar.firstElementChild.style.animation = 'gradientShift 2s linear infinite, fillProgress 40s cubic-bezier(0.1, 0.8, 0.2, 1) forwards';
 
   try {
@@ -289,8 +290,6 @@ async function submitBoost(type) {
     });
 
     const data = await res.json();
-    
-    // වැඩේ ඉවර නිසා Progress bar එක හංගනවා
     progressBar.style.display = 'none';
 
     if (data.success) {
@@ -370,4 +369,4 @@ loadSessions();
 setInterval(loadSessions, 15000);
 </script>
 </body>
-        </html>
+                                                          </html>
