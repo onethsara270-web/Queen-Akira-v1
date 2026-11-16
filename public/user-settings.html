@@ -9,14 +9,200 @@
 <link rel="stylesheet" href="/shared.css">
 <script>const savedTheme = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-theme', savedTheme);</script>
 <style>
-.tabs{display:flex;gap:8px;margin-bottom:24px;padding:6px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);overflow-x:auto;scrollbar-width:none;box-shadow:var(--glass-shadow);}
+/* ── Tabs container ── */
+.tabs{
+  display:flex;
+  gap:8px;
+  margin-bottom:24px;
+  padding:8px;
+  background:var(--surface);
+  backdrop-filter:var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius);
+  overflow-x:auto;
+  scrollbar-width:none;
+  box-shadow:var(--glass-shadow);
+  position:relative;
+  animation:fadeUp 0.45s ease;
+}
 .tabs::-webkit-scrollbar{display:none}
-.tab{flex:1;min-width:120px;padding:12px 18px;border:none;border-radius:8px;background:transparent;color:var(--text-dim);font-family:var(--font-mono);font-size:0.85em;font-weight:800;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all 0.3s;display:flex;align-items:center;justify-content:center;gap:8px;white-space:nowrap}
-.tab:hover{color:var(--accent);background:var(--surface2)}
-.tab.active{background:var(--accent);color:#fff;box-shadow:0 4px 15px var(--accent-glow)}
-.tab-content{display:none;animation:fadeUp 0.4s ease} .tab-content.active{display:block}
-.actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px}
-@media(max-width:640px){.actions{grid-template-columns:1fr} .tabs{padding:4px;gap:4px} .tab{padding:10px 14px;font-size:0.75em;min-width:auto;flex:0 0 auto}}
+
+.tab{
+  flex:1;
+  min-width:120px;
+  padding:12px 18px;
+  border:none;
+  border-radius:10px;
+  background:transparent;
+  color:var(--text-dim);
+  font-family:var(--font-mono);
+  font-size:0.85em;
+  font-weight:800;
+  letter-spacing:1px;
+  text-transform:uppercase;
+  cursor:pointer;
+  transition:all 0.35s cubic-bezier(0.2,0.9,0.3,1.2);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:8px;
+  white-space:nowrap;
+  position:relative;
+}
+.tab:hover{
+  color:var(--accent);
+  background:var(--surface2);
+  transform:translateY(-2px);
+}
+.tab.active{
+  background:var(--gradient);
+  color:#fff;
+  box-shadow:0 6px 20px var(--accent-glow-strong);
+  transform:translateY(-2px);
+}
+
+/* ── Tab content ── */
+.tab-content{display:none;animation:fadeUp 0.4s ease}
+.tab-content.active{display:block}
+
+/* ── Info banner (password / phone) ── */
+.info-banner{
+  display:flex;
+  align-items:center;
+  gap:16px;
+  background:var(--surface);
+  backdrop-filter:var(--glass-blur);
+  -webkit-backdrop-filter:var(--glass-blur);
+  border:1.5px solid var(--border);
+  border-radius:var(--radius);
+  padding:22px;
+  margin-bottom:24px;
+  box-shadow:var(--glass-shadow);
+  position:relative;
+  overflow:hidden;
+  animation:fadeUp 0.4s ease;
+  transition:border-color 0.3s, box-shadow 0.3s;
+}
+.info-banner::before{
+  content:'';
+  position:absolute;
+  inset:0;
+  background:radial-gradient(circle at 0% 50%,var(--accent-glow),transparent 60%);
+  pointer-events:none;
+}
+.info-banner:hover{
+  border-color:var(--border-active);
+  box-shadow:var(--glass-shadow),0 10px 30px var(--accent-glow);
+}
+.info-banner .banner-icon{
+  width:48px;
+  height:48px;
+  border-radius:14px;
+  background:var(--gradient);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  color:#fff;
+  flex-shrink:0;
+  box-shadow:0 8px 22px var(--accent-glow-strong);
+  position:relative;
+  z-index:1;
+  transition:transform 0.4s cubic-bezier(0.2,0.9,0.3,1.2);
+}
+.info-banner:hover .banner-icon{transform:rotate(-8deg) scale(1.08)}
+.info-banner .banner-icon .icon{width:22px;height:22px;stroke:#fff}
+.info-banner .banner-body{position:relative;z-index:1;min-width:0}
+.info-banner .banner-title{
+  font-weight:800;
+  font-size:1em;
+  margin-bottom:4px;
+  font-family:var(--font-mono);
+  color:var(--text);
+  word-break:break-word;
+}
+.info-banner .banner-sub{
+  color:var(--text-dim);
+  font-size:0.85em;
+  font-family:var(--font-mono);
+  word-break:break-word;
+}
+
+/* ── User info chip in header ── */
+.userinfo{
+  display:inline-flex;
+  align-items:center;
+  gap:6px;
+  padding:6px 14px;
+  border-radius:50px;
+  background:var(--accent-glow);
+  border:1.5px solid var(--border-active);
+  color:var(--accent);
+  font-family:var(--font-mono);
+  font-size:0.78em;
+  font-weight:800;
+  letter-spacing:0.5px;
+  text-transform:uppercase;
+}
+.userinfo::before{
+  content:'';
+  width:7px;
+  height:7px;
+  border-radius:50%;
+  background:var(--accent);
+  box-shadow:0 0 8px var(--accent);
+  animation:userPulse 2s ease-in-out infinite;
+}
+@keyframes userPulse{
+  0%,100%{opacity:1;transform:scale(1)}
+  50%{opacity:0.5;transform:scale(0.85)}
+}
+
+/* ── Status summary block ── */
+.status-summary{
+  margin-top:16px;
+  padding:16px 18px;
+  background:var(--surface2);
+  border-radius:var(--radius-sm);
+  font-family:var(--font-mono);
+  font-size:0.9em;
+  border:1px solid var(--border);
+  line-height:1.6;
+}
+.status-summary .row{
+  margin-bottom:10px;
+  display:flex;
+  justify-content:space-between;
+  gap:12px;
+}
+.status-summary .row:last-child{margin-bottom:0}
+.status-summary .row > span:first-child{color:var(--text-dim);flex-shrink:0}
+.status-summary .row > span:last-child{text-align:right;word-break:break-word}
+
+/* ── Config cards stagger animation ── */
+#config-container .card{
+  animation:fadeUp 0.5s ease backwards;
+}
+
+/* ── Actions grid ── */
+.actions{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+  margin-top:24px;
+  animation:fadeUp 0.6s ease;
+}
+
+/* ── Responsive ── */
+@media(max-width:640px){
+  .actions{grid-template-columns:1fr}
+  .tabs{padding:6px;gap:6px}
+  .tab{padding:10px 14px;font-size:0.72em;min-width:auto;flex:0 0 auto}
+  .info-banner{flex-direction:column;text-align:center;align-items:center}
+  .info-banner .banner-body{text-align:center}
+  .status-summary .row{flex-direction:column;gap:4px}
+  .status-summary .row > span:last-child{text-align:left}
+}
 </style>
 </head>
 <body>
@@ -35,11 +221,11 @@
     </div>
   </div>
 
-  <div class="info-banner" style="display:flex;align-items:center;gap:16px;background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:20px;margin-bottom:24px;box-shadow:var(--glass-shadow);">
-    <div style="width:44px;height:44px;border-radius:12px;background:var(--accent-glow);display:flex;align-items:center;justify-content:center;color:var(--accent);"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
-    <div>
-      <div style="font-weight:800;font-size:1em;margin-bottom:4px;font-family:var(--font-mono)">Your Password: {{PASSWORD}}</div>
-      <div style="color:var(--text-dim);font-size:0.85em;font-family:var(--font-mono)">{{PHONE}} • Keep this safe!</div>
+  <div class="info-banner">
+    <div class="banner-icon"><svg class="icon" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div>
+    <div class="banner-body">
+      <div class="banner-title">Your Password: {{PASSWORD}}</div>
+      <div class="banner-sub">{{PHONE}} • Keep this safe!</div>
     </div>
   </div>
 
@@ -67,11 +253,11 @@
       <div class="field"><div class="toggle"><span class="toggle-label">Skip group admins</span><label class="switch"><input type="checkbox" id="al-skipadmins"><span class="slider"></span></label></div></div>
       <div class="field"><div class="toggle"><span class="toggle-label">Skip bot's own messages</span><label class="switch"><input type="checkbox" id="al-skipbot"><span class="slider"></span></label></div></div>
 
-      <div style="margin-top:16px;padding:16px;background:var(--surface2);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:0.9em;border:1px solid var(--border)">
-        <div style="margin-bottom:10px;display:flex;justify-content:space-between"><span style="color:var(--text-dim)">Status</span><span id="al-status">--</span></div>
-        <div style="margin-bottom:10px;display:flex;justify-content:space-between"><span style="color:var(--text-dim)">Action</span><span id="al-action-status">--</span></div>
-        <div style="margin-bottom:10px;display:flex;justify-content:space-between"><span style="color:var(--text-dim)">Warn limit</span><span id="al-limit-status">--</span></div>
-        <div style="display:flex;justify-content:space-between"><span style="color:var(--text-dim)">Whitelist</span><span id="al-whitelist-status">--</span></div>
+      <div class="status-summary">
+        <div class="row"><span>Status</span><span id="al-status">--</span></div>
+        <div class="row"><span>Action</span><span id="al-action-status">--</span></div>
+        <div class="row"><span>Warn limit</span><span id="al-limit-status">--</span></div>
+        <div class="row"><span>Whitelist</span><span id="al-whitelist-status">--</span></div>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px">
         <button class="btn sm green" onclick="alQuick('on')">Turn ON</button>
@@ -90,9 +276,9 @@
         <button class="btn sm green" onclick="adAction('set_all')">All ON</button>
         <button class="btn sm danger" onclick="adAction('off_all')">All OFF</button>
       </div>
-      <div style="margin-top:16px;padding:16px;background:var(--surface2);border-radius:var(--radius-sm);font-family:var(--font-mono);font-size:0.9em;border:1px solid var(--border)">
-        <div style="margin-bottom:10px;display:flex;justify-content:space-between"><span style="color:var(--text-dim)">DM</span><span id="ad-dm-status">--</span></div>
-        <div style="display:flex;justify-content:space-between"><span style="color:var(--text-dim)">GC</span><span id="ad-gc-status">--</span></div>
+      <div class="status-summary">
+        <div class="row"><span>DM</span><span id="ad-dm-status">--</span></div>
+        <div class="row"><span>GC</span><span id="ad-gc-status">--</span></div>
       </div>
     </div>
   </div>
@@ -184,35 +370,4 @@ loadConfig(); loadAntilink(); loadAntiDelete();
 
 <script src="/components.js"></script>
 <script>renderBottomNav('dashboard');</script>
-
-<div id="qz-loading" aria-label="Loading">
-  <div class="qz-loader-inner">
-    <div class="qz-loader-mark">QZ</div>
-    <div class="qz-loader-title">QUEEN ZARA MINI</div>
-    <div class="qz-loader-sub">PREPARING YOUR DASHBOARD</div>
-    <div class="qz-loader-line"></div>
-  </div>
-</div>
-<script>
-(function(){
-  var screen=document.getElementById('qz-loading');
-  function hide(){if(screen){screen.classList.add('qz-hidden');setTimeout(function(){if(screen.parentNode)screen.parentNode.removeChild(screen)},550)}}
-  if(document.readyState==='complete') setTimeout(hide,450);
-  else window.addEventListener('load',function(){setTimeout(hide,350)},{once:true});
-  setTimeout(hide,4500);
-  var nav=document.querySelector('.header .nav');
-  var header=document.querySelector('.header');
-  if(nav&&header){
-    var toggle=document.createElement('button');
-    toggle.type='button';toggle.className='qz-menu-toggle';toggle.setAttribute('aria-label','Toggle navigation');toggle.setAttribute('aria-expanded','false');toggle.innerHTML='☰';
-    toggle.addEventListener('click',function(){
-      var opened=nav.classList.toggle('qz-open');
-      toggle.setAttribute('aria-expanded',String(opened));toggle.innerHTML=opened?'✕':'☰';
-    });
-    var brand=header.querySelector('.brand');
-    if(brand&&brand.nextSibling)header.insertBefore(toggle,brand.nextSibling);else header.insertBefore(toggle,nav);
-  }
-})();
-</script>
-
 </body></html>
