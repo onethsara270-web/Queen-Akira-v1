@@ -2,9 +2,7 @@
    𝑸𝒖𝒆𝒆𝒏 𝒁𝒂𝒓𝒂 𝑴𝒊𝒏𝒊 - WhatsApp Multi-Device Bot
    Owner           : FIXO DEV (94703945265)
    Baileys         : fixo-baileys
-   Version         : 3.0.0
-
-   Base credit     : PathumTech (original base author) - credit kept as requested by the base license
+   Version         : 3.1.0 (Auto-features fixed)
 */
 
 const {
@@ -23,6 +21,7 @@ const {
 const { getBuffer, getGroupAdmins } = require('./lib/functions')
 const { saveMessage } = require('./data')
 const { initializeAntiDeleteSettings, setAnti, getAnti } = require('./lib')
+const { AntiViewOnce } = require('./lib/antivv')   // ✅ NEW
 const fs = require('fs')
 const P = require('pino')
 const config = require('./config')
@@ -37,9 +36,6 @@ const channels = require('./lib/channels');
 const authSync = require('./lib/authSync');
 const { requestValidPairingCode } = require('./lib/pairing');
 
-// ═══════════════════════════════════════════════════
-//  📁 DIRECTORIES
-// ═══════════════════════════════════════════════════
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 [DATA_DIR, path.join(DATA_DIR, 'data'), path.join(DATA_DIR, 'sessions'),
  path.join(DATA_DIR, 'user-sessions'), path.join(DATA_DIR, 'user-configs')].forEach(d => {
@@ -63,16 +59,13 @@ const botStatus = { connected: false, user: null, qr: null, lastUpdate: null, pa
 
 let ownerConnecting = false;
 let ownerConn = null;
-let ownerSock = null;            // socket currently in use (used to stop an unfinished pairing)
-let ownerSync = null;            // MongoDB auth-folder sync
-let ownerPairWanted = false;     // true only while the owner pressed "Generate pairing code" on the dashboard
+let ownerSock = null;
+let ownerSync = null;
+let ownerPairWanted = false;
 let ownerPairNumber = null;
 let ownerPairTimer = null;
 const PAIR_TIMEOUT_MIN = parseInt(process.env.PAIR_TIMEOUT_MIN || config.PAIR_TIMEOUT_MIN || '10', 10) || 10;
 
-// ═══════════════════════════════════════════════════
-//  🎨 PAGE RENDERER
-// ═══════════════════════════════════════════════════
 function renderPage(name, vars = {}) {
   const filePath = path.join(PUBLIC_DIR, name + '.html');
   try {
@@ -116,8 +109,36 @@ global.BOT_DOMAIN = detectDomain()
 console.log('🌐 Domain:', global.BOT_DOMAIN || '❌ Not detected')
 
 // ═══════════════════════════════════════════════════
-//  🔄 OWNER SESSION (self-contained — no external site)
-//  Priority:  local creds.json  >  MongoDB backup  >  SESSION_ID (base64)  >  pairing code
+//  ⌨️ 🎙️ PRESENCE WRAPPER — Auto Typing / Auto Recording
+//  Intercepts every text/caption message and shows the
+//  typing indicator BEFORE the message is sent.
+// ═══════════════════════════════════════════════════
+function attachPresenceWrapper(conn) {
+  if (conn._presenceWrapped) return;
+  conn._presenceWrapped = true;
+  const origSend = conn.sendMessage.bind(conn);
+  conn.sendMessage = async function (jid, content, opts = {}) {
+    try {
+      const cfg = conn._userConfig || {};
+      const wantType = String(cfg.AUTO_TYPING) === 'true';
+      const wantRec = String(cfg.AUTO_RECORDING) === 'true';
+      const isText = content && !content.react && !content.delete && !content.sticker &&
+        (content.text || ((content.image || content.video) && content.caption));
+      if ((wantType || wantRec) && isText) {
+        const mode = wantRec ? 'recording' : 'composing';
+        const delay = wantRec ? 1200 : 600;
+        try { await conn.sendPresenceUpdate(mode, jid); } catch (e) {}
+        await new Promise(r => setTimeout(r, delay));
+        try { return await origSend(jid, content, opts); }
+        finally { try { await conn.sendPresenceUpdate('paused', jid); } catch (e) {} }
+      }
+    } catch (e) {}
+    return await origSend(jid, content, opts);
+  };
+}
+
+// ═══════════════════════════════════════════════════
+//  🔄 OWNER SESSION
 // ═══════════════════════════════════════════════════
 const OWNER_SESSION_KEY = '__owner__';
 
@@ -129,7 +150,6 @@ function isCredsValid(credsPath) {
   } catch (e) { return false; }
 }
 
-// SESSION_ID = base64 of creds.json (optionally prefixed like "QUEEN-ZARA~<base64>")
 function restoreSessionFromEnv(credsPath) {
   try {
     let sessdata = String(config.SESSION_ID || '').trim();
@@ -141,7 +161,7 @@ function restoreSessionFromEnv(credsPath) {
     fs.writeFileSync(credsPath, json);
     console.log('✅ Session restored from SESSION_ID');
     return true;
-  } catch (e) { console.error('❌ Invalid SESSION_ID (expected base64 of creds.json):', e.message); return false; }
+  } catch (e) { console.error('❌ Invalid SESSION_ID:', e.message); return false; }
 }
 
 async function restoreSessionFromMongo(credsPath) {
@@ -175,10 +195,9 @@ async function wipeOwnerSession() {
     if (mongo.isConnected()) await mongo.deleteSession(OWNER_SESSION_KEY);
     await authSync.remove(OWNER_SESSION_KEY);
   } catch (e) {}
-  if (ownerSync) { ownerSync.stop(); ownerSync = null; }   // restarted with an empty cache on next connect
+  if (ownerSync) { ownerSync.stop(); ownerSync = null; }
 }
 
-// ── Owner pairing: ONLY when requested from the dashboard (never automatically) ──
 function endOwnerPairing(reason, wipe = true) {
   if (ownerPairTimer) { clearTimeout(ownerPairTimer); ownerPairTimer = null; }
   const wasPairing = ownerPairWanted;
@@ -188,7 +207,7 @@ function endOwnerPairing(reason, wipe = true) {
   if (ownerSock && !botStatus.connected) { ownerSock._noReconnect = true; try { ownerSock.end(undefined); } catch (e) {} }
   ownerConnecting = false;
   if (wasPairing || wipe) {
-    console.log(`🧹 Pairing ended: ${reason || 'cancelled'} — removing the unfinished session`);
+    console.log(`🧹 Pairing ended: ${reason || 'cancelled'}`);
     if (wipe) wipeOwnerSession().catch(() => {});
   }
 }
@@ -199,13 +218,13 @@ async function startOwnerPairing(number) {
   if (botStatus.connected) throw new Error('Owner is already connected');
   if (ownerPairWanted) return;
   if (ownerSock) { ownerSock._noReconnect = true; try { ownerSock.end(undefined); } catch (e) {} }
-  await wipeOwnerSession();                    // always start from a clean, empty session
+  await wipeOwnerSession();
   ownerPairWanted = true;
   ownerPairNumber = num;
   botStatus.pairingCode = null;
   botStatus.pairingError = null;
   ownerPairTimer = setTimeout(() => {
-    if (ownerPairWanted && !botStatus.connected) endOwnerPairing(`Not linked within ${PAIR_TIMEOUT_MIN} minutes — session deleted. Generate a new code.`);
+    if (ownerPairWanted && !botStatus.connected) endOwnerPairing(`Not linked within ${PAIR_TIMEOUT_MIN} minutes`);
   }, PAIR_TIMEOUT_MIN * 60 * 1000);
   ownerConnecting = false;
   ownerConn = null;
@@ -226,14 +245,12 @@ async function ensureOwnerSession() {
     try { fs.unlinkSync(credsPath); } catch (e) {}
   }
 
-  // 1) full session folder from MongoDB (creds + keys) — the reliable way
   const restored = await authSync.restore(OWNER_SESSION_KEY, sessionsDir);
-  if (restored && isCredsValid(credsPath)) { console.log(`✅ Owner session restored from MongoDB (${restored} files)`); return true; }
-  // 2) legacy: creds.json only, 3) SESSION_ID
+  if (restored && isCredsValid(credsPath)) { console.log(`✅ Restored from MongoDB (${restored} files)`); return true; }
   if (await restoreSessionFromMongo(credsPath)) return true;
   if (restoreSessionFromEnv(credsPath)) return true;
 
-  console.log('📲 No owner session. Open the dashboard → "Link the owner WhatsApp" → Generate pairing code (nothing is sent to your phone until you do).');
+  console.log('📲 No owner session. Link via dashboard.');
   return false;
 }
 
@@ -245,19 +262,11 @@ function backupOwnerCreds() {
   } catch (e) {}
 }
 
-// ═══════════════════════════════════════════════════
-//  💾 CONFIG HELPERS
-// ═══════════════════════════════════════════════════
 function readLocalConfig() {
   try {
-    if (fs.existsSync(CONFIG_PATH)) {
-      return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
-    }
+    if (fs.existsSync(CONFIG_PATH)) return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
     return null;
-  } catch (e) { 
-    console.error('❌ readLocalConfig:', e.message);
-    return null; 
-  }
+  } catch (e) { console.error('❌ readLocalConfig:', e.message); return null; }
 }
 
 async function writeConfig(patch) {
@@ -267,29 +276,15 @@ async function writeConfig(patch) {
     const dir = path.dirname(CONFIG_PATH);
     if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(next, null, 2), 'utf8');
-
-    if (typeof config._save === 'function') {
-      config._save(patch);
-    } else if (typeof config._reload === 'function') {
-      config._reload();
-    }
-
+    if (typeof config._save === 'function') config._save(patch);
+    else if (typeof config._reload === 'function') config._reload();
     try {
       const mongo = require('./lib/mongo');
-      if (mongo.isConnected()) {
-        await mongo.saveConfig(next);
-        console.log('☁️  Config synced to MongoDB');
-      }
-    } catch (e) {
-      console.log('⚠️  MongoDB sync failed:', e.message);
-    }
-
+      if (mongo.isConnected()) { await mongo.saveConfig(next); console.log('☁️  Config synced to MongoDB'); }
+    } catch (e) { console.log('⚠️  MongoDB sync failed:', e.message); }
     console.log('💾 Config saved:', Object.keys(patch).join(', '));
     return true;
-  } catch (e) {
-    console.error('❌ writeConfig:', e.message);
-    return false;
-  }
+  } catch (e) { console.error('❌ writeConfig:', e.message); return false; }
 }
 
 async function readConfigFromMongo() {
@@ -304,35 +299,28 @@ async function readConfigFromMongo() {
       return cfg;
     }
     return null;
-  } catch (e) {
-    return null;
-  }
+  } catch (e) { return null; }
 }
 
-// ═══════════════════════════════════════════════════
-//  🎯 AUTO JOIN — follows ALL configured channels (+ optional group)
-// ═══════════════════════════════════════════════════
 async function handleAutoJoin(conn, cfg) {
   cfg = cfg || {};
   const links = channels.getChannelLinks(cfg);
   const groupLink = cfg.GROUP_LINK || '';
   console.log(`\n🔍 [AUTO-JOIN] Channels: ${links.length} | Group: ${groupLink ? 'YES' : 'NO'}`);
-
   if (links.length) await channels.followAllChannels(conn, cfg);
-
   if (groupLink) {
     try {
       const m = groupLink.match(/chat\.whatsapp\.com\/(?:invite\/)?([A-Za-z0-9]{15,})/);
       if (m) {
         const res = await conn.groupAcceptInvite(m[1]);
-        console.log(res ? '✅ [AUTO-JOIN] Group joined' : '⚠️ [AUTO-JOIN] Group join returned null (maybe already joined)');
+        console.log(res ? '✅ [AUTO-JOIN] Group joined' : '⚠️ Group join returned null');
       }
     } catch (e) { console.log('❌ [AUTO-JOIN] Group error:', e.message); }
   }
 }
 
 // ═══════════════════════════════════════════════════
-//  🎮 BOT COMMANDS HANDLER (FULL)
+//  🎮 BOT COMMANDS HANDLER — FULL WITH ALL FIXES
 // ═══════════════════════════════════════════════════
 function setupBotCommands(conn, options = {}) {
   const { isOwnerBot = false, userInfo = null } = options;
@@ -357,34 +345,31 @@ function setupBotCommands(conn, options = {}) {
   conn._userConfig = botConfig;
   conn._isOwnerBot = isOwnerBot;
 
+  // ✅ FIX: Attach presence wrapper once
+  attachPresenceWrapper(conn);
+
   conn.ev.on('messages.update', async (updates) => {
     try {
       const isDelete = updates.some(u => u.update && u.update.message === null);
       if (!isDelete) return;
-
       const liveCfg = isOwnerBot ? null : (conn._userConfig || botConfig);
       console.log(`🔄 [DEL] isOwnerBot: ${isOwnerBot} | DM: ${liveCfg?.ANTI_DELETE_DM} | GC: ${liveCfg?.ANTI_DELETE_GC}`);
-
       await AntiDelete(conn, updates);
-    } catch (e) {
-      console.error('❌ AntiDelete handler error:', e.message);
-    }
+    } catch (e) { console.error('❌ AntiDelete handler error:', e.message); }
   });
 
   conn.ev.on('messages.upsert', async (upsert) => {
     try {
       let mek = upsert.messages && upsert.messages[0];
 
-      // 🔎 Diagnostics (set DEBUG_MSG=false to silence): shows whether WhatsApp messages reach the bot at all
       if (process.env.DEBUG_MSG !== 'false' && mek) {
         const k = mek.key || {};
         console.log(`📥 [${upsert.type}] ${String(k.remoteJid).split('@')[0]}@${String(k.remoteJid).split('@')[1]} fromMe=${!!k.fromMe} ` +
           (mek.message ? `type=${Object.keys(mek.message).filter(x => x !== 'messageContextInfo').join(',')}` :
-            `NO-CONTENT stub=${mek.messageStubType} ${JSON.stringify(mek.messageStubParameters || [])}`));
+            `NO-CONTENT stub=${mek.messageStubType}`));
       }
       if (!mek || !mek.message) return;
 
-      // History / offline backlog arrives as type 'append' — never run commands for old messages
       if (upsert.type !== 'notify') {
         const ts = Number(mek.messageTimestamp || 0);
         if (!ts || (Date.now() / 1000 - ts) > 30) return;
@@ -396,21 +381,56 @@ function setupBotCommands(conn, options = {}) {
 
       const PREFIX = liveCfg.PREFIX || '.';
 
+      // ✅ FIX: ANTI_VV — run BEFORE unwrapping view-once
+      if (String(liveCfg.ANTI_VV) === 'true') {
+        try { await AntiViewOnce(conn, mek); } catch (e) {}
+      }
+
       mek.message = (getContentType(mek.message) === 'ephemeralMessage')
         ? mek.message.ephemeralMessage.message : mek.message;
 
-      if (String(liveCfg.READ_MESSAGE) === 'true') {
-        try { await conn.readMessages([mek.key]); } catch (e) {}
-      }
+      // ✅ FIX: Compute body FIRST so READ_CMD can detect command
+      const _earlyType = getContentType(mek.message);
+      let _earlyBody = '';
+      if (_earlyType === 'conversation') _earlyBody = mek.message.conversation || '';
+      else if (_earlyType === 'extendedTextMessage') _earlyBody = mek.message.extendedTextMessage?.text || '';
+      else if (_earlyType === 'imageMessage') _earlyBody = mek.message.imageMessage?.caption || '';
+      else if (_earlyType === 'videoMessage') _earlyBody = mek.message.videoMessage?.caption || '';
+      const _isCmdForRead = _earlyBody.startsWith(PREFIX);
+
+      // ✅ FIX: READ_MESSAGE + READ_CMD
+      const shouldRead = String(liveCfg.READ_MESSAGE) === 'true' ||
+        (_isCmdForRead && String(liveCfg.READ_CMD) === 'true');
+      if (shouldRead) { try { await conn.readMessages([mek.key]); } catch (e) {} }
+
       if (mek.message.viewOnceMessageV2) {
         mek.message = (getContentType(mek.message) === 'ephemeralMessage')
           ? mek.message.ephemeralMessage.message : mek.message;
       }
 
+      // ✅ FIX: STATUS HANDLER — AUTO_STATUS_SEEN + AUTO_STATUS_REACT + AUTO_STATUS_REPLY
       if (mek.key && mek.key.remoteJid === 'status@broadcast') {
         const participant = mek.key.participant;
         if (participant && String(liveCfg.AUTO_STATUS_SEEN) === 'true') {
           try { await conn.sendReceipt('status@broadcast', participant, [mek.key.id], 'read'); } catch (e) {}
+        }
+        // 🆕 AUTO_STATUS_REACT
+        if (participant && String(liveCfg.AUTO_STATUS_REACT) === 'true') {
+          try {
+            let emojis;
+            const mode = String(liveCfg.STATUS_REACT_MODE || 'default');
+            if (mode === 'custom') {
+              emojis = [String(liveCfg.CUSTOM_STATUS_EMOJI || '❤️')];
+            } else if (mode === 'random') {
+              emojis = String(liveCfg.CUSTOM_STATUS_EMOJIS || '❤️,🔥,💯').split(',').map(e => e.trim()).filter(Boolean);
+            } else {
+              emojis = ['❤️','🔥','💯','😍','🥰','👏','🎉','✨','💫','🌟'];
+            }
+            const emoji = emojis[Math.floor(Math.random() * emojis.length)] || '❤️';
+            await conn.sendMessage('status@broadcast', {
+              react: { text: emoji, key: mek.key }
+            });
+          } catch (e) {}
         }
         if (participant && String(liveCfg.AUTO_STATUS_REPLY) === 'true') {
           try {
@@ -426,7 +446,6 @@ function setupBotCommands(conn, options = {}) {
 
       const m = sms(conn, mek);
       const type = getContentType(mek.message);
-      // Always reply to the phone-number chat. A LID chat id (xxxx@lid) can resolve to a different/hidden thread.
       const _rj = mek.key.remoteJid;
       const _myLid = conn.user?.lid ? jidNormalizedUser(conn.user.lid) : null;
       const from = _rj.endsWith('@lid')
@@ -463,7 +482,6 @@ function setupBotCommands(conn, options = {}) {
       const q = args.join(' ');
       const text = args.join(' ');
       const isGroup = from.endsWith('@g.us');
-      // WhatsApp now addresses many chats by LID (xxxx@lid). Prefer the phone-number JID when WhatsApp gives it.
       const rawSender = mek.key.participant || mek.key.remoteJid;
       const altSender = mek.key.participantAlt || mek.key.remoteJidAlt;
       const sender = mek.key.fromMe
@@ -495,19 +513,13 @@ function setupBotCommands(conn, options = {}) {
 
         const antilinkHandled = await antilink.handle({
           sock: conn, mek, m, from, body, sender,
-          isGroup,
-          isAdmin: isAdmins,
-          isBotAdmin: isBotAdmins,
+          isGroup, isAdmin: isAdmins, isBotAdmin: isBotAdmins,
           isOwner, isMe, isCmd, command, args, text,
-          prefix: PREFIX,
-          config: liveCfg,
-          sessionId: alSessionId,
-          reply,
+          prefix: PREFIX, config: liveCfg, sessionId: alSessionId, reply,
           saveConfig: async (patch) => {
             Object.assign(liveCfg, patch);
             if (!conn._userConfig) conn._userConfig = {};
             Object.assign(conn._userConfig, patch);
-
             if (isOwnerBot) {
               await writeConfig(patch);
             } else if (userInfo?.sessionId) {
@@ -520,15 +532,10 @@ function setupBotCommands(conn, options = {}) {
             }
           }
         });
-
         if (antilinkHandled) return;
-      } catch (e) {
-        console.error('❌ Antilink error:', e.message);
-      }
+      } catch (e) { console.error('❌ Antilink error:', e.message); }
 
       const udp = botNumber.split('@')[0];
-
-      // Only the bot's own number and the owner (DEV) may use the % / $ eval commands
       const isCreator = [udp, config.DEV]
         .filter(Boolean)
         .map(v => String(v).replace(/[^0-9]/g, '') + '@s.whatsapp.net')
@@ -548,9 +555,32 @@ function setupBotCommands(conn, options = {}) {
         return;
       }
 
-      if (!isReact && String(liveCfg.AUTO_REACT) === 'true') {
-        const REACTIONS = ['😊','👍','😂','💯','🔥','🙏','🎉','👏','😎','🤖','❤️'];
-        try { m.react(REACTIONS[Math.floor(Math.random() * REACTIONS.length)]); } catch (e) {}
+      // ✅ FIX: AUTO_REACT with CUSTOM_REACT support
+      if (!isReact && !isCmd && String(liveCfg.AUTO_REACT) === 'true') {
+        try {
+          let emojis;
+          if (String(liveCfg.CUSTOM_REACT) === 'true' && liveCfg.CUSTOM_REACT_EMOJIS) {
+            emojis = String(liveCfg.CUSTOM_REACT_EMOJIS).split(',').map(e => e.trim()).filter(Boolean);
+          } else {
+            emojis = ['😊','👍','😂','💯','🔥','🙏','🎉','👏','😎','🤖','❤️'];
+          }
+          if (!emojis.length) emojis = ['❤️'];
+          const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+          m.react(emoji);
+        } catch (e) {}
+      }
+
+      // ✅ FIX: AUTO_STICKER — convert incoming images to stickers
+      if (!isMe && !isCmd && String(liveCfg.AUTO_STICKER) === 'true' && type === 'imageMessage') {
+        try {
+          const buffer = await m.download();
+          if (buffer && buffer.length && typeof conn.sendImageAsSticker === 'function') {
+            await conn.sendImageAsSticker(from, buffer, {
+              packname: liveCfg.STICKER_NAME || 'Queen Zara Mini',
+              author: liveCfg.STICKER_NAME || 'Queen Zara Mini'
+            });
+          }
+        } catch (e) { console.error('AUTO_STICKER:', e.message); }
       }
 
       if (!isOwner && liveCfg.MODE === 'private') return;
@@ -578,18 +608,10 @@ function setupBotCommands(conn, options = {}) {
 
       if (finalCmd) {
         if (finalCmd.react) { try { conn.sendMessage(from, { react: { text: finalCmd.react, key: mek.key } }); } catch (e) {} }
-        // ⌨️ 🎙️ Session Settings — Auto Typing / Auto Recording presence, shown while the command runs
-        if (String(liveCfg.AUTO_RECORDING) === 'true') {
-          try { await conn.sendPresenceUpdate('recording', from); } catch (e) {}
-        } else if (String(liveCfg.AUTO_TYPING) === 'true') {
-          try { await conn.sendPresenceUpdate('composing', from); } catch (e) {}
-        }
+        // ✅ Note: AUTO_TYPING/RECORDING is now handled by attachPresenceWrapper
         try {
           await events.runCommand(finalCmd, conn, mek, m, { ...extras, isCmd: true, command: command || finalCmd.pattern });
         } catch (e) { console.error('[PLUGIN ERROR]', e.stack || e.message); }
-        if (String(liveCfg.AUTO_TYPING) === 'true' || String(liveCfg.AUTO_RECORDING) === 'true') {
-          try { await conn.sendPresenceUpdate('paused', from); } catch (e) {}
-        }
       }
 
       const isViewOnce = !!(mek.message?.viewOnceMessageV2 || mek.message?.viewOnceMessageV2Extension || mek.message?.viewOnceMessage);
@@ -597,9 +619,7 @@ function setupBotCommands(conn, options = {}) {
 
       for (const c of events.commands) {
         if (effectiveBody && c.on === 'body') {
-          try {
-            await events.runCommand(c, conn, mek, m, { ...extras, body: effectiveBody });
-          } catch (e) {}
+          try { await events.runCommand(c, conn, mek, m, { ...extras, body: effectiveBody }); } catch (e) {}
         }
       }
 
@@ -610,12 +630,11 @@ function setupBotCommands(conn, options = {}) {
 }
 
 // ═══════════════════════════════════════════════════
-//  🔧 CONNECTION HELPERS (FULL)
+//  🔧 CONNECTION HELPERS
 // ═══════════════════════════════════════════════════
 function attachConnHelpers(conn) {
   const FileType = require('file-type');
 
-  // Never fail silently: if WhatsApp refuses a send (no session, bad jid, ...) the reason is printed.
   if (!conn._sendWrapped) {
     conn._sendWrapped = true;
     const _send = conn.sendMessage.bind(conn);
@@ -781,25 +800,18 @@ function attachConnHelpers(conn) {
   return conn;
 }
 
-// ═══════════════════════════════════════════════════
-//  🎉 CONNECTED MESSAGE
-// ═══════════════════════════════════════════════════
 async function sendConnectedMessage(conn, isOwnerBot = false, userInfo = null) {
   try {
-    // Owner bot -> tell the owner. User bot -> tell that user (their own number).
     const targetNumber = String(isOwnerBot ? config.OWNER_NUMBER : (userInfo?.phone || '')).replace(/[^0-9]/g, '');
     if (!targetNumber) return;
     const check = await conn.onWhatsApp(targetNumber + '@s.whatsapp.net');
     if (!check || !check[0]?.exists) return;
-
     const PREFIX = conn._userConfig?.PREFIX || config.PREFIX || '.';
     const BOT_NAME = conn._userConfig?.BOT_NAME || config.BOT_NAME;
     const OWNER = config.OWNER_NAME;
-
     const up = isOwnerBot
       ? `*Hello! Owner Bot Online* ✅\n\n> ${BOT_NAME}\n\n- *PREFIX:* ${PREFIX}\n- *OWNER:* ${OWNER}\n\n${config.DESCRIPTION}`
       : `*Hello There!*\n\n> Your bot is now connected!\n\n- *PREFIX:* ${PREFIX}\n- *YOUR NUMBER:* ${userInfo?.phone || 'unknown'}\n\n> Send *.password* for settings\n\n${config.DESCRIPTION}`;
-
     try {
       const { imageSource } = require('./lib/media');
       await conn.sendMessage(check[0].jid, { image: await imageSource(config.ALIVE_IMG), caption: up });
@@ -813,22 +825,19 @@ async function sendConnectedMessage(conn, isOwnerBot = false, userInfo = null) {
 global.setupBotCommands = setupBotCommands;
 global.attachConnHelpers = attachConnHelpers;
 global.sendConnectedMessage = sendConnectedMessage;
-global.writeOwnerConfig = writeConfig;      // used by .addchannel / .delchannel
+global.writeOwnerConfig = writeConfig;
 global.handleAutoJoin = handleAutoJoin;
 
 console.log('✅ Global functions exposed');
 
 // ═══════════════════════════════════════════════════
-//  🌐 EXPRESS SERVER (FULL ROUTES)
+//  🌐 EXPRESS SERVER
 // ═══════════════════════════════════════════════════
 const app = express();
 const port = process.env.PORT || 8000;
 
 app.use(express.json());
 app.use(bodyparser.urlencoded({ extended: true }));
-// index: false — public/index.html (the Automation Dashboard) is served
-// explicitly at GET /panel below, never auto-served at "/" (which stays
-// the existing home page).
 app.use(express.static(PUBLIC_DIR, { index: false }));
 
 app.use((req, res, next) => {
@@ -858,15 +867,10 @@ function getUserConfigPath(sessionId) { return path.join(USER_CONFIGS_DIR, `${se
 function loadUserConfig(sessionId) {
   try {
     const p = getUserConfigPath(sessionId);
-    if (fs.existsSync(p)) {
-      return JSON.parse(fs.readFileSync(p, 'utf8'));
-    }
+    if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
     if (fs.existsSync(DEFAULT_PATH)) return JSON.parse(fs.readFileSync(DEFAULT_PATH, 'utf8'));
     return readLocalConfig() || {};
-  } catch (e) {
-    console.error('❌ [loadUserConfig]', e.message);
-    return {};
-  }
+  } catch (e) { console.error('❌ [loadUserConfig]', e.message); return {}; }
 }
 
 function saveUserConfig(sessionId, cfg) {
@@ -875,15 +879,9 @@ function saveUserConfig(sessionId, cfg) {
     fs.writeFileSync(p, JSON.stringify(cfg, null, 2), 'utf8');
     console.log(`💾 [saveUserConfig] ${sessionId} → keys=${Object.keys(cfg).length}`);
     return true;
-  } catch (e) {
-    console.error('❌ [saveUserConfig]', e.message);
-    return false;
-  }
+  } catch (e) { console.error('❌ [saveUserConfig]', e.message); return false; }
 }
 
-// ═══════════════════════════════════════════════════
-//  🏠 PAGES
-// ═══════════════════════════════════════════════════
 app.get("/", (req, res) => {
   res.send(renderPage('home', {
     STATUS_CLASS: botStatus.connected ? 'on' : 'off',
@@ -896,14 +894,9 @@ app.get("/", (req, res) => {
 
 app.get("/login", (req, res) => res.send(renderPage('login')));
 app.get("/freebot", (req, res) => res.send(renderPage('freebot')));
-
-// 🧭 Automation Dashboard — single-page app (public/index.html), served
-// explicitly here (see the static({ index: false }) note above).
 app.get("/panel", (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
-// ✅ NEW: BOOST — dashboard page
 app.get("/boost", (req, res) => res.send(renderPage('boost', { KEY: req.query.key || '' })));
 app.use('/api/automation', require('./routes/automation')({ botStatus }));
-// ✅ NEW: BOOST — channel boost API routes
 app.use('/api/boost', require('./routes/boost')());
 
 app.get("/dashboard", (req, res) => {
@@ -936,9 +929,6 @@ app.get("/user/settings", (req, res) => {
   }));
 });
 
-// ═══════════════════════════════════════════════════
-//  🔐 API: LOGIN
-// ═══════════════════════════════════════════════════
 app.post("/api/login", (req, res) => {
   const userMgr = require('./user-manager');
   const { password } = req.body || {};
@@ -949,9 +939,6 @@ app.post("/api/login", (req, res) => {
   res.json({ success: false, error: 'Invalid password' });
 });
 
-// ═══════════════════════════════════════════════════
-//  🚀 API: QUICK DEPLOY
-// ═══════════════════════════════════════════════════
 app.post("/api/user/quick-deploy", async (req, res) => {
   try {
     const userMgr = require('./user-manager');
@@ -959,7 +946,6 @@ app.post("/api/user/quick-deploy", async (req, res) => {
     if (!phone || !name) return res.json({ success: false, error: 'Phone & name required' });
     const cleanPhone = userMgr.cleanPhone(phone);
     if (cleanPhone.length < 10) return res.json({ success: false, error: 'Invalid phone' });
-
     let user = userMgr.USERS[cleanPhone];
     if (user) {
       if (!user.dashPassword || String(user.dashPassword).length !== 5) {
@@ -992,12 +978,10 @@ app.post("/api/user/quick-connect", async (req, res) => {
     const existing = userMgr.BOT_INSTANCES.get(sessId);
     if (existing && existing.status === 'active') return res.json({ success: true, sessionId: sessId, status: 'active' });
     if (existing && existing.status === 'pairing_code_ready' && existing.pairingCode) return res.json({ success: true, sessionId: sessId });
-    // a healthy bot that is just (re)connecting must not be killed by a stranger typing the number: let it settle first
     if (existing && existing.status === 'connecting' && !existing.deadSession && Date.now() - new Date(existing.startedAt).getTime() < 90000) {
       return res.json({ success: true, sessionId: sessId });
     }
     if (existing) {
-      // offline / dead / stuck instance: stop it and start a clean pairing (a dead session was already deleted on 401)
       console.log(`♻️ Quick connect: replacing ${existing.status} instance of ${cleanPhone}`);
       try { userMgr.stopUserBot(sessId); } catch (e) {}
     }
@@ -1021,15 +1005,12 @@ app.get("/api/user/quick-status", (req, res) => {
       qr: instance?.qr || null,
       pairingCode: instance?.pairingCode || null,
       pairingCodeError: instance?.pairingCodeError || null,
-      debug: instance?.lastEvent || (instance ? null : (userMgr.LAST_ERRORS.get(sessionId) ? 'bot could not start: ' + userMgr.LAST_ERRORS.get(sessionId) : 'no bot instance on the server (it was not created or it was removed)')),
+      debug: instance?.lastEvent || (instance ? null : (userMgr.LAST_ERRORS.get(sessionId) ? 'bot could not start: ' + userMgr.LAST_ERRORS.get(sessionId) : 'no bot instance on the server')),
       connectedAt: instance?.connectedAt || null
     });
   } catch (e) { res.json({ success: false, error: e.message }); }
 });
 
-// ═══════════════════════════════════════════════════
-//  ⚙️ USER CONFIG API
-// ═══════════════════════════════════════════════════
 app.get("/api/user/config", (req, res) => {
   const userMgr = require('./user-manager');
   const key = req.query.key;
@@ -1048,11 +1029,9 @@ app.post("/api/user/config", (req, res) => {
     const currentFileCfg = loadUserConfig(user.sessionId);
     if (currentFileCfg.ANTI_DELETE_GC !== undefined) newCfg.ANTI_DELETE_GC = currentFileCfg.ANTI_DELETE_GC;
     if (currentFileCfg.ANTI_DELETE_DM !== undefined) newCfg.ANTI_DELETE_DM = currentFileCfg.ANTI_DELETE_DM;
-
     const old = loadUserConfig(user.sessionId);
     if (old && Object.keys(old).length) fs.writeFileSync(getUserConfigPath(user.sessionId) + '.backup', JSON.stringify(old, null, 2), 'utf8');
     const ok = saveUserConfig(user.sessionId, newCfg);
-
     const instance = userMgr.BOT_INSTANCES.get(user.sessionId);
     if (instance && instance.conn) {
       if (!instance.conn._userConfig) instance.conn._userConfig = {};
@@ -1071,7 +1050,6 @@ app.post("/api/user/config/reset", (req, res) => {
     let def = {};
     if (fs.existsSync(DEFAULT_PATH)) def = JSON.parse(fs.readFileSync(DEFAULT_PATH, 'utf8'));
     saveUserConfig(user.sessionId, def);
-
     const instance = userMgr.BOT_INSTANCES.get(user.sessionId);
     if (instance && instance.conn) {
       if (!instance.conn._userConfig) instance.conn._userConfig = {};
@@ -1081,9 +1059,6 @@ app.post("/api/user/config/reset", (req, res) => {
   } catch (e) { res.json({ success: false, error: e.message }); }
 });
 
-// ═══════════════════════════════════════════════════
-//  🔧 OWNER APIs — MongoDB first
-// ═══════════════════════════════════════════════════
 app.get("/api/config", async (req, res) => {
   const key = req.query.key;
   if (!global.DASHBOARD_USERS?.[key]) return res.status(401).json({ error: 'Unauthorized' });
@@ -1153,18 +1128,13 @@ app.post("/api/restart", (req, res) => {
   setTimeout(() => process.exit(0), 2000);
 });
 
-// ═══════════════════════════════════════════════════
-//  🛡️ ANTI-DELETE API
-// ═══════════════════════════════════════════════════
 app.get("/api/antidelete", (req, res) => {
   const userMgr = require('./user-manager');
   const key = req.query.key;
   if (!key) return res.status(401).json({ error: 'Unauthorized' });
-
   const isOwner = !!global.DASHBOARD_USERS?.[key];
   const user = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
   if (!isOwner && !user) return res.status(401).json({ error: 'Unauthorized' });
-
   try {
     if (isOwner) {
       const gc = (typeof getAnti === 'function') ? getAnti('gc') : false;
@@ -1182,11 +1152,9 @@ app.post("/api/antidelete", async (req, res) => {
   const userMgr = require('./user-manager');
   const { key, action } = req.body || {};
   if (!key) return res.status(401).json({ error: 'Unauthorized' });
-
   const isOwner = !!global.DASHBOARD_USERS?.[key];
   const user = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
   if (!isOwner && !user) return res.status(401).json({ error: 'Unauthorized' });
-
   try {
     if (isOwner) {
       if (typeof setAnti !== 'function' || typeof getAnti !== 'function') {
@@ -1201,11 +1169,9 @@ app.post("/api/antidelete", async (req, res) => {
       }
       return res.json({ success: true, gc: getAnti('gc'), dm: getAnti('dm'), scope: 'global' });
     }
-
     const cfg = loadUserConfig(user.sessionId);
     let gc = String(cfg.ANTI_DELETE_GC) === 'true';
     let dm = String(cfg.ANTI_DELETE_DM) === 'true';
-
     switch (action) {
       case 'set_all': gc = true; dm = true; break;
       case 'off_all': gc = false; dm = false; break;
@@ -1213,34 +1179,26 @@ app.post("/api/antidelete", async (req, res) => {
       case 'toggle_dm': dm = !dm; break;
       default: return res.json({ success: false, error: 'Invalid' });
     }
-
     cfg.ANTI_DELETE_GC = gc ? 'true' : 'false';
     cfg.ANTI_DELETE_DM = dm ? 'true' : 'false';
     saveUserConfig(user.sessionId, cfg);
-
     const instance = userMgr.BOT_INSTANCES.get(user.sessionId);
     if (instance && instance.conn) {
       if (!instance.conn._userConfig) instance.conn._userConfig = {};
       instance.conn._userConfig.ANTI_DELETE_GC = cfg.ANTI_DELETE_GC;
       instance.conn._userConfig.ANTI_DELETE_DM = cfg.ANTI_DELETE_DM;
     }
-
     res.json({ success: true, gc, dm, scope: 'user' });
   } catch (e) { res.json({ success: false, error: e.message }); }
 });
 
-// ═══════════════════════════════════════════════════
-//  🛡️ ANTILINK API — MongoDB first
-// ═══════════════════════════════════════════════════
 app.get("/api/antilink", async (req, res) => {
   const userMgr = require('./user-manager');
   const key = req.query.key;
   if (!key) return res.status(401).json({ error: 'Unauthorized' });
-
   const isOwner = !!global.DASHBOARD_USERS?.[key];
   const user = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
   if (!isOwner && !user) return res.status(401).json({ error: 'Unauthorized' });
-
   try {
     let cfg;
     if (isOwner) {
@@ -1249,19 +1207,13 @@ app.get("/api/antilink", async (req, res) => {
       if (!cfg) cfg = config._base || {};
     } else {
       const p = path.join(USER_CONFIGS_DIR, `${user.sessionId}.json`);
-      if (fs.existsSync(p)) {
-        cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
-      } else {
-        cfg = loadUserConfig(user.sessionId);
-      }
+      if (fs.existsSync(p)) cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
+      else cfg = loadUserConfig(user.sessionId);
     }
-
     const enabled = String(cfg.ANTI_LINK_ENABLED !== undefined ? cfg.ANTI_LINK_ENABLED : cfg.ANTI_LINK || 'false') === 'true';
     const whitelistEnabled = String(cfg.ANTI_LINK_WHITELIST_ENABLED !== undefined ? cfg.ANTI_LINK_WHITELIST_ENABLED : 'true') === 'true';
-
     res.json({
-      success: true,
-      enabled,
+      success: true, enabled,
       action: cfg.ANTI_LINK_ACTION || 'delete',
       warnLimit: cfg.ANTI_LINK_WARN_LIMIT || '3',
       whitelist: cfg.ANTI_LINK_WHITELIST || 'whatsapp.com,youtube.com,github.com',
@@ -1278,11 +1230,9 @@ app.post("/api/antilink", async (req, res) => {
   const userMgr = require('./user-manager');
   const { key, enabled, action, warnLimit, whitelist, whitelistEnabled, notify, skipAdmins, skipBot } = req.body || {};
   if (!key) return res.status(401).json({ error: 'Unauthorized' });
-
   const isOwner = !!global.DASHBOARD_USERS?.[key];
   const user = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
   if (!isOwner && !user) return res.status(401).json({ error: 'Unauthorized' });
-
   const patch = {
     ANTI_LINK_ENABLED: enabled ? 'true' : 'false',
     ANTI_LINK_ACTION: ['delete','warn','kick'].includes(action) ? action : 'delete',
@@ -1293,7 +1243,6 @@ app.post("/api/antilink", async (req, res) => {
     ANTI_LINK_SKIP_ADMINS: skipAdmins ? 'true' : 'false',
     ANTI_LINK_SKIP_BOT: skipBot !== false ? 'true' : 'false'
   };
-
   try {
     if (isOwner) {
       await writeConfig(patch);
@@ -1301,30 +1250,21 @@ app.post("/api/antilink", async (req, res) => {
         if (!global.ownerConn._userConfig) global.ownerConn._userConfig = {};
         Object.assign(global.ownerConn._userConfig, patch);
       }
-      console.log('💾 [OWNER] Antilink saved:', Object.keys(patch).join(', '));
+      console.log('💾 [OWNER] Antilink saved');
       return res.json({ success: true, scope: 'owner' });
     }
-
     const cur = loadUserConfig(user.sessionId);
     const next = { ...cur, ...patch };
     const ok = saveUserConfig(user.sessionId, next);
-
     const instance = userMgr.BOT_INSTANCES.get(user.sessionId);
     if (instance && instance.conn) {
       if (!instance.conn._userConfig) instance.conn._userConfig = {};
       Object.assign(instance.conn._userConfig, patch);
     }
-
     res.json({ success: ok, scope: 'user' });
-  } catch (e) {
-    console.error('❌ [/api/antilink]', e.message);
-    res.json({ success: false, error: e.message });
-  }
+  } catch (e) { console.error('❌ [/api/antilink]', e.message); res.json({ success: false, error: e.message }); }
 });
 
-// ═══════════════════════════════════════════════════
-//  🔍 DEBUG ENDPOINT
-// ═══════════════════════════════════════════════════
 app.get("/api/debug/config", async (req, res) => {
   const key = req.query.key;
   if (!global.DASHBOARD_USERS?.[key]) return res.status(401).json({ error: 'Unauthorized' });
@@ -1332,41 +1272,21 @@ app.get("/api/debug/config", async (req, res) => {
     const mongo = require('./lib/mongo');
     const diskCfg = fs.existsSync(CONFIG_PATH) ? JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')) : null;
     const mongoCfg = mongo.isConnected() ? await mongo.getConfig() : null;
-
     res.json({
       path: CONFIG_PATH,
-      disk: {
-        exists: fs.existsSync(CONFIG_PATH),
-        keys: diskCfg ? Object.keys(diskCfg).length : 0,
-        ANTI_LINK_ENABLED: diskCfg?.ANTI_LINK_ENABLED,
-        ANTI_LINK_WHITELIST_ENABLED: diskCfg?.ANTI_LINK_WHITELIST_ENABLED,
-        ANTI_LINK_ACTION: diskCfg?.ANTI_LINK_ACTION
-      },
-      mongo: {
-        connected: mongo.isConnected(),
-        keys: mongoCfg ? Object.keys(mongoCfg).length : 0,
-        ANTI_LINK_ENABLED: mongoCfg?.ANTI_LINK_ENABLED,
-        ANTI_LINK_WHITELIST_ENABLED: mongoCfg?.ANTI_LINK_WHITELIST_ENABLED,
-        ANTI_LINK_ACTION: mongoCfg?.ANTI_LINK_ACTION
-      }
+      disk: { exists: fs.existsSync(CONFIG_PATH), keys: diskCfg ? Object.keys(diskCfg).length : 0, ANTI_LINK_ENABLED: diskCfg?.ANTI_LINK_ENABLED, ANTI_LINK_WHITELIST_ENABLED: diskCfg?.ANTI_LINK_WHITELIST_ENABLED, ANTI_LINK_ACTION: diskCfg?.ANTI_LINK_ACTION },
+      mongo: { connected: mongo.isConnected(), keys: mongoCfg ? Object.keys(mongoCfg).length : 0, ANTI_LINK_ENABLED: mongoCfg?.ANTI_LINK_ENABLED, ANTI_LINK_WHITELIST_ENABLED: mongoCfg?.ANTI_LINK_WHITELIST_ENABLED, ANTI_LINK_ACTION: mongoCfg?.ANTI_LINK_ACTION }
     });
   } catch (e) { res.json({ error: e.message }); }
 });
 
-// ═══════════════════════════════════════════════════
-//  👥 ADMIN USERS
-// ═══════════════════════════════════════════════════
 app.get('/api/admin/users', (req, res) => {
   const userMgr = require('./user-manager');
   const key = req.query.key;
   if (!global.DASHBOARD_USERS?.[key]) return res.status(401).json({ error: 'Unauthorized' });
   const users = Object.values(userMgr.USERS).map(u => {
     const inst = userMgr.BOT_INSTANCES.get(u.sessionId);
-    return {
-      phone: u.phone, name: u.name, createdAt: u.createdAt,
-      botStatus: inst?.status || 'stopped',
-      sessionId: u.sessionId, dashPassword: u.dashPassword
-    };
+    return { phone: u.phone, name: u.name, createdAt: u.createdAt, botStatus: inst?.status || 'stopped', sessionId: u.sessionId, dashPassword: u.dashPassword };
   });
   res.json({ success: true, users });
 });
@@ -1382,9 +1302,6 @@ app.post('/api/admin/remove-user', async (req, res) => {
   } catch (e) { res.json({ success: false, error: e.message }); }
 });
 
-// ═══════════════════════════════════════════════════
-//  🔗 OWNER PAIRING (dashboard key required)
-// ═══════════════════════════════════════════════════
 app.get("/api/owner/pairing", (req, res) => {
   if (!global.DASHBOARD_USERS?.[req.query.key]) return res.status(401).json({ error: 'Unauthorized' });
   res.json({
@@ -1401,10 +1318,8 @@ app.get("/api/owner/pairing", (req, res) => {
 app.post("/api/owner/pair", async (req, res) => {
   const { key, number } = req.body || {};
   if (!global.DASHBOARD_USERS?.[key]) return res.status(401).json({ error: 'Unauthorized' });
-  try {
-    await startOwnerPairing(number);
-    res.json({ success: true });
-  } catch (e) { res.json({ success: false, error: e.message }); }
+  try { await startOwnerPairing(number); res.json({ success: true }); }
+  catch (e) { res.json({ success: false, error: e.message }); }
 });
 
 app.post("/api/owner/pair/cancel", (req, res) => {
@@ -1414,21 +1329,16 @@ app.post("/api/owner/pair/cancel", (req, res) => {
   res.json({ success: true });
 });
 
-// ═══════════════════════════════════════════════════
-//  📊 STATUS
-// ═══════════════════════════════════════════════════
 app.get("/status", (req, res) => {
   const userMgr = require('./user-manager');
   const mongo = require('./lib/mongo');
   const uptime = Math.floor((Date.now() - BOT_START_TIME) / 1000);
   res.json({
     status: botStatus.connected ? "online" : "offline",
-    bot: config.BOT_NAME, owner: config.OWNER_NAME, version: "3.0.0",
-    user: botStatus.user,
-    uptime, uptimeFormatted: formatUptime(uptime),
+    bot: config.BOT_NAME, owner: config.OWNER_NAME, version: "3.1.0",
+    user: botStatus.user, uptime, uptimeFormatted: formatUptime(uptime),
     startedAt: new Date(BOT_START_TIME).toISOString(),
-    lastUpdate: botStatus.lastUpdate,
-    domain: global.BOT_DOMAIN,
+    lastUpdate: botStatus.lastUpdate, domain: global.BOT_DOMAIN,
     database: { type: mongo.isConnected() ? 'mongodb' : 'file', connected: mongo.isConnected() },
     users: { total: Object.keys(userMgr.USERS).length, activeBots: userMgr.BOT_INSTANCES.size },
     memory: {
@@ -1441,39 +1351,30 @@ app.get("/status", (req, res) => {
   });
 });
 
-// ═══════════════════════════════════════════════════
-//  🔌 OWNER WHATSAPP CONNECTION
-// ═══════════════════════════════════════════════════
 async function connectToWA() {
   if (ownerConnecting) return;
   if (ownerConn && botStatus.connected) return;
-
   ownerConnecting = true;
   console.log("Connecting ⏳...");
   if (!fs.existsSync(sessionsDir)) fs.mkdirSync(sessionsDir, { recursive: true });
-
   try {
     const { state, saveCreds } = await useMultiFileAuthState(sessionsDir);
     const { version } = await fetchLatestBaileysVersion();
-
     const conn = makeWASocket({
-      logger: P({ level: process.env.LOG_LEVEL || 'error' }),   // 'error' shows decrypt / socket problems
+      logger: P({ level: process.env.LOG_LEVEL || 'error' }),
       printQRInTerminal: false,
       browser: Browsers.macOS("Firefox"),
       syncFullHistory: false,
-      auth: state,
-      version,
+      auth: state, version,
       markOnlineOnConnect: false,
       connectTimeoutMs: 60000,
       keepAliveIntervalMs: 25000,
       retryRequestDelayMs: 250,
       generateHighQualityLinkPreview: false
     });
-
     ownerSock = conn;
     if (!ownerSync) ownerSync = authSync.start(OWNER_SESSION_KEY, sessionsDir);
 
-    // ── Pairing code — only after the owner asked for it on the dashboard ──
     let pairingRequested = false;
     const requestOwnerPairing = async () => {
       if (!ownerPairWanted || pairingRequested || conn.authState?.creds?.registered) return;
@@ -1481,14 +1382,10 @@ async function connectToWA() {
       const num = ownerPairNumber;
       if (!num) { botStatus.pairingError = 'Number not set'; return; }
       try {
-        // default code (FIXOMODZ) like your other bots; PAIRING_CODE env/config can override
         const code = await requestValidPairingCode(conn, num);
         botStatus.pairingCode = code;
         botStatus.pairingError = null;
-        console.log('\n══════════════════════════════════════════');
-        console.log(`🔢 PAIRING CODE for ${num}:  ${code}`);
-        console.log('   WhatsApp > Linked devices > Link with phone number');
-        console.log('══════════════════════════════════════════\n');
+        console.log(`\n══════════════════════════════════════════\n🔢 PAIRING CODE for ${num}:  ${code}\n══════════════════════════════════════════\n`);
       } catch (e) {
         pairingRequested = false;
         botStatus.pairingError = e.message;
@@ -1507,38 +1404,24 @@ async function connectToWA() {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const reason = lastDisconnect?.error?.output?.payload?.message || '';
         console.log(`🔄 Closed — ${statusCode} ${reason}`);
-
-        if (conn._noReconnect) return;                       // closed on purpose (pairing cancelled / expired)
-
-        // pairing in progress: only the normal "restart required" after a successful link may reconnect
+        if (conn._noReconnect) return;
         if (ownerPairWanted && statusCode !== 515 && statusCode !== DisconnectReason.restartRequired) {
-          endOwnerPairing(`Connection closed before linking (${statusCode}). Generate a new code.`);
+          endOwnerPairing(`Connection closed before linking (${statusCode})`);
           return;
         }
-
         if (statusCode === 401 || statusCode === DisconnectReason.loggedOut) {
-          // Logged out / device removed: the session is useless — delete it and wait. NO automatic pairing code.
-          console.log('🚪 Logged out — session deleted. Open the dashboard to link again.');
+          console.log('🚪 Logged out — session deleted');
           botStatus.pairingCode = null;
           await wipeOwnerSession();
           return;
         }
-        
-        if (statusCode === 440) {
-          setTimeout(() => { ownerConn = null; connectToWA(); }, 5 * 60 * 1000);
-          return;
-        }
-
+        if (statusCode === 440) { setTimeout(() => { ownerConn = null; connectToWA(); }, 5 * 60 * 1000); return; }
         if (statusCode === 515 || statusCode === DisconnectReason.restartRequired) {
-          // normal right after pairing — reconnect quickly
           setTimeout(() => { ownerConn = null; connectToWA(); }, 2000);
           return;
         }
-
         if ([402, 403, 500].includes(statusCode)) return;
-
         setTimeout(() => { ownerConn = null; connectToWA(); }, 30000);
-
       } else if (connection === 'open') {
         ownerConnecting = false;
         botStatus.connected = true;
@@ -1551,34 +1434,19 @@ async function connectToWA() {
         console.log('✅ Owner connected');
         ownerConn = conn;
         global.ownerConn = conn;
-
         const mongoCfg = await readConfigFromMongo();
-        // defaults first, saved config (Mongo / config.json) on top
         conn._userConfig = { ...(config._base || {}), ...(mongoCfg || readLocalConfig() || {}) };
-
-
-        try {
-          const events = require('./command');
-          events.loadPlugins();
-        } catch (e) {}
-
+        try { const events = require('./command'); events.loadPlugins(); } catch (e) {}
         attachConnHelpers(conn);
         setupBotCommands(conn, { isOwnerBot: true, userInfo: null });
-
-        // 🎯 AUTO JOIN — every configured channel (main + extras). Runs in background so it can never delay commands.
         handleAutoJoin(conn, conn._userConfig).catch(e => console.log('❌ Auto-Join error:', e.message));
-
-        setTimeout(() => {
-          sendConnectedMessage(conn, true, null).catch(e => {});
-        }, 15000);
-
+        setTimeout(() => { sendConnectedMessage(conn, true, null).catch(e => {}); }, 15000);
         if (String(config.ALWAYS_ONLINE) === 'true') {
           try { await conn.sendPresenceUpdate('available'); } catch (e) {}
           setInterval(async () => {
             try { if (botStatus.connected) await conn.sendPresenceUpdate('available'); } catch (e) {}
           }, 30000);
         }
-
         setTimeout(() => {
           const userMgr = require('./user-manager');
           userMgr.restoreAllSessions(conn).catch(e => console.error('Restore:', e.message));
@@ -1589,10 +1457,9 @@ async function connectToWA() {
     conn.ev.on('creds.update', async () => {
       await saveCreds();
       backupOwnerCreds();
-      backupOwnerCredsToMongo();            // legacy creds-only copy
-      if (ownerSync) ownerSync.flush();     // full session folder -> MongoDB (only once really linked)
+      backupOwnerCredsToMongo();
+      if (ownerSync) ownerSync.flush();
     });
-
   } catch (e) {
     ownerConnecting = false;
     console.log('❌ connectToWA error:', e.message);
@@ -1600,21 +1467,13 @@ async function connectToWA() {
   }
 }
 
-// ═══════════════════════════════════════════════════
-//  🚀 STARTUP
-// ═══════════════════════════════════════════════════
 app.listen(port, () => console.log(`🌐 http://localhost:${port}`));
 
 (async () => {
   console.log(`🚀 ${config.BOT_NAME} starting...`);
-
-  // Load every plugin/command at startup. This used to happen only after the OWNER bot connected, so with no owner
-  // session (user bots only) the command list stayed empty and nothing ever replied.
   try { require('./command').loadPlugins(); } catch (e) { console.error('❌ Plugin load failed:', e.stack || e.message); }
-
   const mongo = require('./lib/mongo');
   const userMgr = require('./user-manager');
-
   try {
     const mongoConn = await mongo.connectMongo();
     if (mongoConn) {
@@ -1627,38 +1486,24 @@ app.listen(port, () => console.log(`🌐 http://localhost:${port}`));
         if (typeof config._reload === 'function') config._reload();
       }
       await userMgr.loadUsers();
-      userMgr.cleanupUnlinked().catch(() => {});   // drop numbers that never linked
+      userMgr.cleanupUnlinked().catch(() => {});
     }
-  } catch (e) {
-    console.log('❌ MongoDB error:', e.message);
-  }
- 
-// ✅ NEW: BOOST — init boost store indexes + periodic cleanup
-try {
-  await require('./lib/boostStore').ensureIndexes();
-  console.log('✅ Boost store ready');
-} catch (e) {
-  console.log('⚠️ Boost store init failed:', e.message);
-}
+  } catch (e) { console.log('❌ MongoDB error:', e.message); }
 
-// ✅ NEW: BOOST — hourly cleanup: auto-revert boosts whose requester has been offline > 24h
-setInterval(() => {
-  try { require('./lib/boostManager').cleanupInactiveRequesters(); } catch (e) {}
-}, 60 * 60 * 1000);
+  try {
+    await require('./lib/boostStore').ensureIndexes();
+    console.log('✅ Boost store ready');
+  } catch (e) { console.log('⚠️ Boost store init failed:', e.message); }
 
+  setInterval(() => {
+    try { require('./lib/boostManager').cleanupInactiveRequesters(); } catch (e) {}
+  }, 60 * 60 * 1000);
 
   const hasOwnerSession = await ensureOwnerSession();
-
   if (hasOwnerSession) {
-    setTimeout(() => {
-      connectToWA().catch(e => console.log('❌ Initial connect failed:', e.message));
-    }, 8000);
+    setTimeout(() => { connectToWA().catch(e => console.log('❌ Initial connect failed:', e.message)); }, 8000);
   } else {
-    // Owner not linked: do NOT connect (that is what used to push a "link device" code to the phone on every start).
-    // User bots that already have a real session still come back.
-    setTimeout(() => {
-      userMgr.restoreAllSessions(null).catch(e => console.error('Restore:', e.message));
-    }, 8000);
+    setTimeout(() => { userMgr.restoreAllSessions(null).catch(e => console.error('Restore:', e.message)); }, 8000);
   }
 })();
 
@@ -1668,9 +1513,7 @@ async function gracefulShutdown(signal) {
   shuttingDown = true;
   console.log(`\n🔌 ${signal} received — closing...`);
   try {
-    if (global.ownerConn) {
-      try { global.ownerConn.end(undefined); } catch (e) {}
-    }
+    if (global.ownerConn) { try { global.ownerConn.end(undefined); } catch (e) {} }
     const m = require('./lib/mongo');
     await m.closeMongo();
   } catch (e) {}
@@ -1682,7 +1525,6 @@ process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
 let lastNoise = 0;
 function logProcessError(tag, msg, stack) {
-  // decrypt / Bad MAC errors are common noise, but never hide them completely (print at most once / 20s)
   if (msg.includes('Bad MAC') || msg.includes('decrypt')) {
     if (Date.now() - lastNoise < 20000) return;
     lastNoise = Date.now();
