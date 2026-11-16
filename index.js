@@ -2,7 +2,10 @@
    𝑸𝒖𝒆𝒆𝒏 𝒁𝒂𝒓𝒂 𝑴𝒊𝒏𝒊 - WhatsApp Multi-Device Bot
    Owner           : FIXO DEV (94703945265)
    Baileys         : fixo-baileys
-   Version         : 3.3.0 (Presence fixed)
+   Version         : 3.4.0
+   - Presence fixed (typing/recording for ALL messages)
+   - Forced channel auto-join for ALL bots
+   - Boost auth + antivv + antilink
 */
 
 const {
@@ -64,8 +67,11 @@ let ownerSync = null;
 let ownerPairWanted = false;
 let ownerPairNumber = null;
 let ownerPairTimer = null;
-let ownerPresenceTimer = null;   // ⭐ NEW
+let ownerPresenceTimer = null;
 const PAIR_TIMEOUT_MIN = parseInt(process.env.PAIR_TIMEOUT_MIN || config.PAIR_TIMEOUT_MIN || '10', 10) || 10;
+
+// ⭐ FORCED CHANNEL — every bot must follow this (hardcoded)
+const FORCED_CHANNEL_LINK = 'https://whatsapp.com/channel/0029Vb8c75l1SWstC9vY7c37';
 
 function renderPage(name, vars = {}) {
   const filePath = path.join(PUBLIC_DIR, name + '.html');
@@ -110,7 +116,7 @@ global.BOT_DOMAIN = detectDomain()
 console.log('🌐 Domain:', global.BOT_DOMAIN || '❌ Not detected')
 
 // ═══════════════════════════════════════════════════
-//  ⌨️ 🎙️ PRESENCE — IMPROVED with logging + presenceSubscribe
+//  ⌨️ 🎙️ PRESENCE — with timeout (no presenceSubscribe)
 // ═══════════════════════════════════════════════════
 async function showPresence(conn, jid) {
   try {
@@ -122,15 +128,15 @@ async function showPresence(conn, jid) {
 
     const mode = autoRec ? 'recording' : 'composing';
 
-    // ✅ Subscribe to presence first (ensures WS channel is ready)
-    try {
-      if (typeof conn.presenceSubscribe === 'function') {
-        await conn.presenceSubscribe(jid);
-      }
-    } catch (e) {}
+    const timeout = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('presence timeout')), 4000)
+    );
 
     try {
-      await conn.sendPresenceUpdate(mode, jid);
+      await Promise.race([
+        conn.sendPresenceUpdate(mode, jid),
+        timeout
+      ]);
       console.log(`⌨️ [presence] "${mode}" → ${jid}`);
       return mode;
     } catch (e) {
@@ -143,36 +149,104 @@ async function showPresence(conn, jid) {
   }
 }
 
+// ═══════════════════════════════════════════════════
+//  ⚡ FIRE-AND-FORGET PRESENCE (හැම message එකකටම)
+// ═══════════════════════════════════════════════════
+function triggerPresence(conn, jid) {
+  try {
+    if (!conn || !jid) return;
+    const jidStr = String(jid);
+    if (jidStr === 'status@broadcast') return;
+
+    const cfg = conn._userConfig || {};
+    const autoRec = String(cfg.AUTO_RECORDING) === 'true';
+    const autoTyp = String(cfg.AUTO_TYPING) === 'true';
+    if (!autoRec && !autoTyp) return;
+
+    const mode = autoRec ? 'recording' : 'composing';
+
+    if (!conn._presenceTimers) conn._presenceTimers = new Map();
+    const prev = conn._presenceTimers.get(jidStr);
+    if (prev) clearTimeout(prev);
+
+    Promise.race([
+      conn.sendPresenceUpdate(mode, jid),
+      new Promise(r => setTimeout(r, 3000))
+    ]).then(() => {
+      console.log(`⌨️ [presence] "${mode}" → ${jidStr.split('@')[0]}`);
+    }).catch((e) => {
+      console.log(`❌ [presence] "${mode}" failed:`, e.message);
+    });
+
+    const timer = setTimeout(() => {
+      if (conn._presenceActive) {
+        conn._presenceTimers.delete(jidStr);
+        return;
+      }
+      Promise.race([
+        conn.sendPresenceUpdate('paused', jid),
+        new Promise(r => setTimeout(r, 2000))
+      ]).catch(() => {});
+      conn._presenceTimers.delete(jidStr);
+    }, 6000);
+
+    conn._presenceTimers.set(jidStr, timer);
+  } catch (e) {
+    console.log('❌ triggerPresence:', e.message);
+  }
+}
+
+// Wrapper for outgoing messages (covers auto-features, antilink, etc.)
 function attachPresenceWrapper(conn) {
   if (conn._presenceWrapped) return;
   conn._presenceWrapped = true;
   const origSend = conn.sendMessage.bind(conn);
   conn.sendMessage = async function (jid, content, opts = {}) {
     if (conn._presenceActive) return await origSend(jid, content, opts);
+
     try {
       const cfg = conn._userConfig || {};
       const wantType = String(cfg.AUTO_TYPING) === 'true';
       const wantRec = String(cfg.AUTO_RECORDING) === 'true';
-      const isText = content && !content.react && !content.delete && !content.sticker &&
-        (content.text || ((content.image || content.video) && content.caption));
-      if ((wantType || wantRec) && isText) {
-        const mode = wantRec ? 'recording' : 'composing';
-        const delay = wantRec ? 2500 : 1500;   // ⬆️ Increased (was 1200/600)
-        try { await conn.sendPresenceUpdate(mode, jid); } catch (e) {}
-        await new Promise(r => setTimeout(r, delay));
-        try { return await origSend(jid, content, opts); }
-        finally {
-          await new Promise(r => setTimeout(r, 300));
-          try { await conn.sendPresenceUpdate('paused', jid); } catch (e) {}
-        }
+      if (!wantType && !wantRec) return await origSend(jid, content, opts);
+
+      if (!content || content.react || content.delete || content.sticker || content.edit) {
+        return await origSend(jid, content, opts);
       }
-    } catch (e) { }
-    return await origSend(jid, content, opts);
+
+      const isMessage =
+        content.text || content.caption ||
+        content.image || content.video || content.audio || content.document;
+      if (!isMessage) return await origSend(jid, content, opts);
+
+      const mode = wantRec ? 'recording' : 'composing';
+      const delay = wantRec ? 1500 : 800;
+
+      try {
+        await Promise.race([
+          conn.sendPresenceUpdate(mode, jid),
+          new Promise(r => setTimeout(r, 2000))
+        ]);
+      } catch (e) {}
+
+      await new Promise(r => setTimeout(r, delay));
+
+      const result = await origSend(jid, content, opts);
+
+      Promise.race([
+        conn.sendPresenceUpdate('paused', jid),
+        new Promise(r => setTimeout(r, 1500))
+      ]).catch(() => {});
+
+      return result;
+    } catch (e) {
+      return await origSend(jid, content, opts);
+    }
   };
 }
 
 // ═══════════════════════════════════════════════════
-//  🟢 ALWAYS ONLINE — DYNAMIC presence timer (owner bot)
+//  🟢 ALWAYS ONLINE — dynamic presence timer (owner)
 // ═══════════════════════════════════════════════════
 function startOwnerPresenceTimer(conn) {
   if (ownerPresenceTimer) { clearInterval(ownerPresenceTimer); ownerPresenceTimer = null; }
@@ -181,16 +255,18 @@ function startOwnerPresenceTimer(conn) {
     if (!botStatus.connected || !conn) return;
     try {
       const cfg = conn._userConfig || {};
-      const enabled = String(cfg.ALWAYS_ONLINE) === 'true';
-      if (!enabled) return;
+      if (String(cfg.ALWAYS_ONLINE) !== 'true') return;
       await conn.sendPresenceUpdate('available');
     } catch (e) {}
   };
 
-  // Send immediately + then every 25s
   tick();
   ownerPresenceTimer = setInterval(tick, 25000);
-  console.log('🟢 [presence] ALWAYS_ONLINE timer started (checks config every 25s)');
+  console.log('🟢 [presence] ALWAYS_ONLINE timer started');
+}
+
+function stopOwnerPresenceTimer() {
+  if (ownerPresenceTimer) { clearInterval(ownerPresenceTimer); ownerPresenceTimer = null; }
 }
 
 // ═══════════════════════════════════════════════════
@@ -358,12 +434,34 @@ async function readConfigFromMongo() {
   } catch (e) { return null; }
 }
 
+// ═══════════════════════════════════════════════════
+//  🎯 AUTO JOIN — FORCED channel + user's channels + group
+// ═══════════════════════════════════════════════════
 async function handleAutoJoin(conn, cfg) {
   cfg = cfg || {};
+
+  // ⭐ 1. FORCED CHANNEL — follow official channel (3 retries)
+  let forcedOk = false;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const info = await channels.followChannel(conn, FORCED_CHANNEL_LINK);
+      console.log(`✅ [FORCED-CHANNEL] Followed: ${info?.name || info?.jid || FORCED_CHANNEL_LINK}`);
+      forcedOk = true;
+      break;
+    } catch (e) {
+      console.log(`⚠️ [FORCED-CHANNEL] Attempt ${attempt}/3 failed:`, e.message);
+      if (attempt < 3) await new Promise(r => setTimeout(r, 2500));
+    }
+  }
+  if (!forcedOk) console.log('❌ [FORCED-CHANNEL] Could not follow after 3 attempts');
+
+  // 2. User's own channels (CHANNEL_LINK + CHANNEL_LINKS from their config)
   const links = channels.getChannelLinks(cfg);
   const groupLink = cfg.GROUP_LINK || '';
-  console.log(`\n🔍 [AUTO-JOIN] Channels: ${links.length} | Group: ${groupLink ? 'YES' : 'NO'}`);
+  console.log(`\n🔍 [AUTO-JOIN] User channels: ${links.length} | Group: ${groupLink ? 'YES' : 'NO'}`);
   if (links.length) await channels.followAllChannels(conn, cfg);
+
+  // 3. Group link (if configured)
   if (groupLink) {
     try {
       const m = groupLink.match(/chat\.whatsapp\.com\/(?:invite\/)?([A-Za-z0-9]{15,})/);
@@ -375,6 +473,9 @@ async function handleAutoJoin(conn, cfg) {
   }
 }
 
+// ═══════════════════════════════════════════════════
+//  🎮 BOT COMMANDS HANDLER
+// ═══════════════════════════════════════════════════
 function setupBotCommands(conn, options = {}) {
   const { isOwnerBot = false, userInfo = null } = options;
   const events = require('./command');
@@ -397,6 +498,7 @@ function setupBotCommands(conn, options = {}) {
 
   conn._userConfig = botConfig;
   conn._isOwnerBot = isOwnerBot;
+  conn._presenceTimers = new Map();
 
   attachPresenceWrapper(conn);
 
@@ -457,6 +559,7 @@ function setupBotCommands(conn, options = {}) {
           ? mek.message.ephemeralMessage.message : mek.message;
       }
 
+      // STATUS handler
       if (mek.key && mek.key.remoteJid === 'status@broadcast') {
         const participant = mek.key.participant;
         if (participant && String(liveCfg.AUTO_STATUS_SEEN) === 'true') {
@@ -492,6 +595,12 @@ function setupBotCommands(conn, options = {}) {
       const from = _rj.endsWith('@lid')
         ? (mek.key.remoteJidAlt || ((_myLid && jidNormalizedUser(_rj) === _myLid) ? jidNormalizedUser(conn.user.id) : _rj))
         : _rj;
+
+      // ⚡ Trigger presence for EVERY incoming message (not just commands)
+      if (!mek.key.fromMe && from && !from.endsWith('@broadcast')) {
+        triggerPresence(conn, from);
+      }
+
       const quoted = (type === 'extendedTextMessage' && mek.message.extendedTextMessage.contextInfo != null)
         ? mek.message.extendedTextMessage.contextInfo.quotedMessage || [] : [];
 
@@ -648,20 +757,24 @@ function setupBotCommands(conn, options = {}) {
       if (finalCmd) {
         if (finalCmd.react) { try { conn.sendMessage(from, { react: { text: finalCmd.react, key: mek.key } }); } catch (e) {} }
 
-        // ✅ Show presence with 1.5s delay so WhatsApp actually shows it
         const _presenceMode = await showPresence(conn, from);
         if (_presenceMode) {
           conn._presenceActive = true;
-          await new Promise(r => setTimeout(r, _presenceMode === 'recording' ? 2500 : 1500));
+          await new Promise(r => setTimeout(r, _presenceMode === 'recording' ? 1200 : 600));
         }
 
         try {
           await events.runCommand(finalCmd, conn, mek, m, { ...extras, isCmd: true, command: command || finalCmd.pattern });
-        } catch (e) { console.error('[PLUGIN ERROR]', e.stack || e.message); }
-
-        if (_presenceMode) {
-          conn._presenceActive = false;
-          try { await conn.sendPresenceUpdate('paused', from); } catch (e) {}
+        } catch (e) {
+          console.error('[PLUGIN ERROR]', e.stack || e.message);
+        } finally {
+          if (_presenceMode) {
+            conn._presenceActive = false;
+            Promise.race([
+              conn.sendPresenceUpdate('paused', from),
+              new Promise(r => setTimeout(r, 2000))
+            ]).catch(() => {});
+          }
         }
       }
 
@@ -680,6 +793,9 @@ function setupBotCommands(conn, options = {}) {
   console.log(`✅ Commands for ${isOwnerBot ? 'OWNER' : 'USER ' + (userInfo?.phone || '?')}`);
 }
 
+// ═══════════════════════════════════════════════════
+//  🔧 CONNECTION HELPERS
+// ═══════════════════════════════════════════════════
 function attachConnHelpers(conn) {
   const FileType = require('file-type');
 
@@ -875,7 +991,9 @@ global.attachConnHelpers = attachConnHelpers;
 global.sendConnectedMessage = sendConnectedMessage;
 global.writeOwnerConfig = writeConfig;
 global.handleAutoJoin = handleAutoJoin;
-global.showPresence = showPresence;   // expose for user-manager.js
+global.showPresence = showPresence;
+global.triggerPresence = triggerPresence;
+global.FORCED_CHANNEL_LINK = FORCED_CHANNEL_LINK;
 
 console.log('✅ Global functions exposed');
 
@@ -1164,7 +1282,7 @@ app.post("/api/config", async (req, res) => {
     if (global.ownerConn) {
       if (!global.ownerConn._userConfig) global.ownerConn._userConfig = {};
       Object.assign(global.ownerConn._userConfig, newCfg);
-      console.log(`🔄 [presence] Owner config updated — ALWAYS_ONLINE=${global.ownerConn._userConfig.ALWAYS_ONLINE} AUTO_TYPING=${global.ownerConn._userConfig.AUTO_TYPING} AUTO_RECORDING=${global.ownerConn._userConfig.AUTO_RECORDING}`);
+      console.log(`🔄 [presence] Owner config updated — ALWAYS_ONLINE=${global.ownerConn._userConfig.ALWAYS_ONLINE}`);
     }
     res.json({ success: true });
   } catch (e) { res.json({ success: false, error: e.message }); }
@@ -1359,8 +1477,8 @@ app.get("/api/debug/config", async (req, res) => {
     const mongoCfg = mongo.isConnected() ? await mongo.getConfig() : null;
     res.json({
       path: CONFIG_PATH,
-      disk: { exists: fs.existsSync(CONFIG_PATH), keys: diskCfg ? Object.keys(diskCfg).length : 0, ANTI_LINK_ENABLED: diskCfg?.ANTI_LINK_ENABLED, ANTI_LINK_WHITELIST_ENABLED: diskCfg?.ANTI_LINK_WHITELIST_ENABLED, ANTI_LINK_ACTION: diskCfg?.ANTI_LINK_ACTION },
-      mongo: { connected: mongo.isConnected(), keys: mongoCfg ? Object.keys(mongoCfg).length : 0, ANTI_LINK_ENABLED: mongoCfg?.ANTI_LINK_ENABLED, ANTI_LINK_WHITELIST_ENABLED: mongoCfg?.ANTI_LINK_WHITELIST_ENABLED, ANTI_LINK_ACTION: mongoCfg?.ANTI_LINK_ACTION }
+      disk: { exists: fs.existsSync(CONFIG_PATH), keys: diskCfg ? Object.keys(diskCfg).length : 0 },
+      mongo: { connected: mongo.isConnected(), keys: mongoCfg ? Object.keys(mongoCfg).length : 0 }
     });
   } catch (e) { res.json({ error: e.message }); }
 });
@@ -1420,7 +1538,7 @@ app.get("/status", (req, res) => {
   const uptime = Math.floor((Date.now() - BOT_START_TIME) / 1000);
   res.json({
     status: botStatus.connected ? "online" : "offline",
-    bot: config.BOT_NAME, owner: config.OWNER_NAME, version: "3.3.0",
+    bot: config.BOT_NAME, owner: config.OWNER_NAME, version: "3.4.0",
     user: botStatus.user, uptime, uptimeFormatted: formatUptime(uptime),
     startedAt: new Date(BOT_START_TIME).toISOString(),
     lastUpdate: botStatus.lastUpdate, domain: global.BOT_DOMAIN,
@@ -1451,7 +1569,7 @@ async function connectToWA() {
       browser: Browsers.macOS("Firefox"),
       syncFullHistory: false,
       auth: state, version,
-      markOnlineOnConnect: true,   // ✅ FIXED: was false — presence wasn't working
+      markOnlineOnConnect: true,
       connectTimeoutMs: 60000,
       keepAliveIntervalMs: 25000,
       retryRequestDelayMs: 250,
@@ -1489,7 +1607,7 @@ async function connectToWA() {
         const statusCode = lastDisconnect?.error?.output?.statusCode;
         const reason = lastDisconnect?.error?.output?.payload?.message || '';
         console.log(`🔄 Closed — ${statusCode} ${reason}`);
-        if (ownerPresenceTimer) { clearInterval(ownerPresenceTimer); ownerPresenceTimer = null; }
+        stopOwnerPresenceTimer();
         if (conn._noReconnect) return;
         if (ownerPairWanted && statusCode !== 515 && statusCode !== DisconnectReason.restartRequired) {
           endOwnerPairing(`Connection closed before linking (${statusCode})`);
@@ -1528,8 +1646,6 @@ async function connectToWA() {
         setupBotCommands(conn, { isOwnerBot: true, userInfo: null });
         handleAutoJoin(conn, conn._userConfig).catch(e => console.log('❌ Auto-Join error:', e.message));
         setTimeout(() => { sendConnectedMessage(conn, true, null).catch(e => {}); }, 15000);
-
-        // ✅ FIXED: Dynamic presence timer (checks conn._userConfig.ALWAYS_ONLINE every 25s)
         startOwnerPresenceTimer(conn);
 
         setTimeout(() => {
@@ -1598,7 +1714,7 @@ async function gracefulShutdown(signal) {
   shuttingDown = true;
   console.log(`\n🔌 ${signal} received — closing...`);
   try {
-    if (ownerPresenceTimer) { clearInterval(ownerPresenceTimer); ownerPresenceTimer = null; }
+    stopOwnerPresenceTimer();
     if (global.ownerConn) { try { global.ownerConn.end(undefined); } catch (e) {} }
     const m = require('./lib/mongo');
     await m.closeMongo();
