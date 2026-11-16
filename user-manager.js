@@ -1,5 +1,5 @@
 // user-manager.js
-// 🔧 Multi-user bot manager with dynamic presence (ALWAYS_ONLINE)
+// 🔧 Multi-user bot manager with auto-join forced channel + dynamic presence
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -118,10 +118,8 @@ async function sendOTP(ownerConn, phone, otp) {
 
 // ══════════════════════════════════════════════════════════════
 // 🟢 DYNAMIC PRESENCE TIMER (ALWAYS_ONLINE)
-// Checks config every 25s → allows live toggle from dashboard
 // ══════════════════════════════════════════════════════════════
 function startUserPresenceTimer(instance, conn) {
-  // clear any existing timer
   if (instance.onlineTimer) { clearInterval(instance.onlineTimer); instance.onlineTimer = null; }
 
   const tick = async () => {
@@ -134,7 +132,6 @@ function startUserPresenceTimer(instance, conn) {
     } catch (e) {}
   };
 
-  // Send immediately + every 25s
   tick();
   instance.onlineTimer = setInterval(tick, 25000);
   console.log(`🟢 [${instance.phone}] Presence timer started (ALWAYS_ONLINE=${conn._userConfig?.ALWAYS_ONLINE})`);
@@ -179,7 +176,7 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
       browser: Browsers.macOS('Firefox'),
       syncFullHistory: false,
       auth: state, version,
-      markOnlineOnConnect: true   // ✅ important for presence to work
+      markOnlineOnConnect: true
     });
 
     const dbg = (m) => { instance.lastEvent = `${new Date().toISOString().slice(11, 19)} ${m}`; console.log(`[${phone}] ${m}`); };
@@ -273,14 +270,24 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
           }
         }, 10000);
 
-        // 🟢 DYNAMIC presence timer (checks conn._userConfig.ALWAYS_ONLINE every 25s)
         startUserPresenceTimer(instance, conn);
+
+        // ⭐ AUTO-JOIN — every user bot follows forced channel + their own channels
+        setTimeout(() => {
+          try {
+            if (typeof global.handleAutoJoin === 'function') {
+              global.handleAutoJoin(conn, conn._userConfig || {})
+                .catch(e => console.log(`❌ [${phone}] Auto-Join error:`, e.message));
+            }
+          } catch (e) {
+            console.log(`❌ [${phone}] Auto-Join init error:`, e.message);
+          }
+        }, 5000);
       }
 
       if (connection === 'close') {
         const code = lastDisconnect?.error?.output?.statusCode;
         if (pairWatchdog) { clearTimeout(pairWatchdog); pairWatchdog = null; }
-        // ✅ Stop presence timer (memory leak fix)
         stopUserPresenceTimer(instance);
 
         if (instance.stopRequested) { instance.status = 'stopped'; return; }
@@ -338,12 +345,10 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
   }
 }
 
-// ✅ discardSession (with presence timer cleanup)
 async function discardSession(sessionId, sessionDir, phone, instance) {
   try { stopUserPresenceTimer(instance); } catch (e) {}
   try { instance && instance.sync && instance.sync.stop(); } catch (e) {}
 
-  // BOOST — revert all boosts (unfollow + mark reverted)
   try {
     const boostManager = require('./lib/boostManager');
     await boostManager.revertAllForRequester(sessionId);
@@ -375,7 +380,7 @@ function stopUserBot(sessionId) {
   const instance = BOT_INSTANCES.get(sessionId);
   if (!instance) return false;
   instance.stopRequested = true;
-  try { stopUserPresenceTimer(instance); } catch (e) {}   // ✅ cleanup timer
+  try { stopUserPresenceTimer(instance); } catch (e) {}
   try { instance.sync && instance.sync.stop(); } catch (e) {}
   try { if (instance.conn) instance.conn.end(); } catch (e) {}
   instance.status = 'stopped';
@@ -383,14 +388,11 @@ function stopUserBot(sessionId) {
   return true;
 }
 
-// ✅ unlinkUserBot (with presence timer cleanup)
 async function unlinkUserBot(sessionId) {
   const instance = BOT_INSTANCES.get(sessionId);
 
-  // ✅ Stop presence timer FIRST
   try { stopUserPresenceTimer(instance); } catch (e) {}
 
-  // BOOST — unfollow every channel this session boosted BEFORE logout
   try {
     const boostManager = require('./lib/boostManager');
     if (instance && instance.conn) {
@@ -398,7 +400,6 @@ async function unlinkUserBot(sessionId) {
     }
   } catch (e) { console.error('⚠️ boost unfollow (unlink):', e.message); }
 
-  // BOOST — revert any boosts where this session was the requester
   try {
     const boostManager = require('./lib/boostManager');
     await boostManager.revertAllForRequester(sessionId);
