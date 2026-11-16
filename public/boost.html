@@ -8,6 +8,19 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shared.css">
 <script>const savedTheme = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-theme', savedTheme);</script>
+<script>
+// ── Auth guard: URL key → localStorage fallback ──
+(function() {
+  const urlKey = new URLSearchParams(window.location.search).get('key');
+  if (urlKey) return;
+  const savedKey = localStorage.getItem('qz_auth_key');
+  if (savedKey) {
+    window.location.replace('/boost?key=' + encodeURIComponent(savedKey));
+  } else {
+    window.location.href = '/login';
+  }
+})();
+</script>
 <style>
 .session-info{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);padding:16px 18px;border-radius:var(--radius-sm);margin-bottom:0;border:1.5px solid var(--border);flex-wrap:wrap;gap:12px;backdrop-filter:var(--glass-blur)}
 .session-info span{font-family:var(--font-mono);font-size:0.88em;font-weight:700;color:var(--text-mid)}
@@ -125,10 +138,6 @@
 <div id="toast" class="toast"></div>
 
 <script>
-if (!window.location.search.includes('key=')) {
-    window.location.href = '/login';
-}
-
 let currentSessionId = null;
 
 function showToast(msg, type='success') {
