@@ -2,7 +2,7 @@
    𝑸𝒖𝒆𝒆𝒏 𝒁𝒂𝒓𝒂 𝑴𝒊𝒏𝒊 - WhatsApp Multi-Device Bot
    Owner           : FIXO DEV (94703945265)
    Baileys         : fixo-baileys
-   Version         : 3.1.0 (Auto-features fixed)
+   Version         : 3.1.1 (All parts preserved + auto-features fixed)
 */
 
 const {
@@ -36,6 +36,9 @@ const channels = require('./lib/channels');
 const authSync = require('./lib/authSync');
 const { requestValidPairingCode } = require('./lib/pairing');
 
+// ═══════════════════════════════════════════════════
+//  📁 DIRECTORIES
+// ═══════════════════════════════════════════════════
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 [DATA_DIR, path.join(DATA_DIR, 'data'), path.join(DATA_DIR, 'sessions'),
  path.join(DATA_DIR, 'user-sessions'), path.join(DATA_DIR, 'user-configs')].forEach(d => {
@@ -66,6 +69,9 @@ let ownerPairNumber = null;
 let ownerPairTimer = null;
 const PAIR_TIMEOUT_MIN = parseInt(process.env.PAIR_TIMEOUT_MIN || config.PAIR_TIMEOUT_MIN || '10', 10) || 10;
 
+// ═══════════════════════════════════════════════════
+//  🎨 PAGE RENDERER
+// ═══════════════════════════════════════════════════
 function renderPage(name, vars = {}) {
   const filePath = path.join(PUBLIC_DIR, name + '.html');
   try {
@@ -109,15 +115,29 @@ global.BOT_DOMAIN = detectDomain()
 console.log('🌐 Domain:', global.BOT_DOMAIN || '❌ Not detected')
 
 // ═══════════════════════════════════════════════════
-//  ⌨️ 🎙️ PRESENCE WRAPPER — Auto Typing / Auto Recording
-//  Intercepts every text/caption message and shows the
-//  typing indicator BEFORE the message is sent.
+//  ⌨️ 🎙️ PRESENCE — shared helper (used by command block + wrapper)
+//  Sets typing/recording based on config. Returns mode or null.
 // ═══════════════════════════════════════════════════
+async function showPresence(conn, jid) {
+  try {
+    const cfg = conn._userConfig || {};
+    if (String(cfg.AUTO_RECORDING) === 'true') {
+      try { await conn.sendPresenceUpdate('recording', jid); return 'recording'; } catch (e) {}
+    } else if (String(cfg.AUTO_TYPING) === 'true') {
+      try { await conn.sendPresenceUpdate('composing', jid); return 'composing'; } catch (e) {}
+    }
+  } catch (e) {}
+  return null;
+}
+
+// Wrapper: covers auto-features (antilink replies, auto-replies) that bypass the command block.
+// Skips when a command is already showing presence (conn._presenceActive flag).
 function attachPresenceWrapper(conn) {
   if (conn._presenceWrapped) return;
   conn._presenceWrapped = true;
   const origSend = conn.sendMessage.bind(conn);
   conn.sendMessage = async function (jid, content, opts = {}) {
+    if (conn._presenceActive) return await origSend(jid, content, opts);
     try {
       const cfg = conn._userConfig || {};
       const wantType = String(cfg.AUTO_TYPING) === 'true';
@@ -138,7 +158,7 @@ function attachPresenceWrapper(conn) {
 }
 
 // ═══════════════════════════════════════════════════
-//  🔄 OWNER SESSION
+//  🔄 OWNER SESSION (unchanged)
 // ═══════════════════════════════════════════════════
 const OWNER_SESSION_KEY = '__owner__';
 
@@ -262,6 +282,9 @@ function backupOwnerCreds() {
   } catch (e) {}
 }
 
+// ═══════════════════════════════════════════════════
+//  💾 CONFIG HELPERS (unchanged)
+// ═══════════════════════════════════════════════════
 function readLocalConfig() {
   try {
     if (fs.existsSync(CONFIG_PATH)) return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
@@ -302,6 +325,9 @@ async function readConfigFromMongo() {
   } catch (e) { return null; }
 }
 
+// ═══════════════════════════════════════════════════
+//  🎯 AUTO JOIN (unchanged)
+// ═══════════════════════════════════════════════════
 async function handleAutoJoin(conn, cfg) {
   cfg = cfg || {};
   const links = channels.getChannelLinks(cfg);
@@ -320,7 +346,7 @@ async function handleAutoJoin(conn, cfg) {
 }
 
 // ═══════════════════════════════════════════════════
-//  🎮 BOT COMMANDS HANDLER — FULL WITH ALL FIXES
+//  🎮 BOT COMMANDS HANDLER (ALL parts preserved + fixes)
 // ═══════════════════════════════════════════════════
 function setupBotCommands(conn, options = {}) {
   const { isOwnerBot = false, userInfo = null } = options;
@@ -345,7 +371,6 @@ function setupBotCommands(conn, options = {}) {
   conn._userConfig = botConfig;
   conn._isOwnerBot = isOwnerBot;
 
-  // ✅ FIX: Attach presence wrapper once
   attachPresenceWrapper(conn);
 
   conn.ev.on('messages.update', async (updates) => {
@@ -381,7 +406,7 @@ function setupBotCommands(conn, options = {}) {
 
       const PREFIX = liveCfg.PREFIX || '.';
 
-      // ✅ FIX: ANTI_VV — run BEFORE unwrapping view-once
+      // ✅ ANTI_VV — run BEFORE unwrapping view-once
       if (String(liveCfg.ANTI_VV) === 'true') {
         try { await AntiViewOnce(conn, mek); } catch (e) {}
       }
@@ -389,7 +414,7 @@ function setupBotCommands(conn, options = {}) {
       mek.message = (getContentType(mek.message) === 'ephemeralMessage')
         ? mek.message.ephemeralMessage.message : mek.message;
 
-      // ✅ FIX: Compute body FIRST so READ_CMD can detect command
+      // ✅ FIX: READ_CMD — detect command early
       const _earlyType = getContentType(mek.message);
       let _earlyBody = '';
       if (_earlyType === 'conversation') _earlyBody = mek.message.conversation || '';
@@ -398,7 +423,6 @@ function setupBotCommands(conn, options = {}) {
       else if (_earlyType === 'videoMessage') _earlyBody = mek.message.videoMessage?.caption || '';
       const _isCmdForRead = _earlyBody.startsWith(PREFIX);
 
-      // ✅ FIX: READ_MESSAGE + READ_CMD
       const shouldRead = String(liveCfg.READ_MESSAGE) === 'true' ||
         (_isCmdForRead && String(liveCfg.READ_CMD) === 'true');
       if (shouldRead) { try { await conn.readMessages([mek.key]); } catch (e) {} }
@@ -408,28 +432,21 @@ function setupBotCommands(conn, options = {}) {
           ? mek.message.ephemeralMessage.message : mek.message;
       }
 
-      // ✅ FIX: STATUS HANDLER — AUTO_STATUS_SEEN + AUTO_STATUS_REACT + AUTO_STATUS_REPLY
+      // STATUS HANDLER
       if (mek.key && mek.key.remoteJid === 'status@broadcast') {
         const participant = mek.key.participant;
         if (participant && String(liveCfg.AUTO_STATUS_SEEN) === 'true') {
           try { await conn.sendReceipt('status@broadcast', participant, [mek.key.id], 'read'); } catch (e) {}
         }
-        // 🆕 AUTO_STATUS_REACT
         if (participant && String(liveCfg.AUTO_STATUS_REACT) === 'true') {
           try {
             let emojis;
             const mode = String(liveCfg.STATUS_REACT_MODE || 'default');
-            if (mode === 'custom') {
-              emojis = [String(liveCfg.CUSTOM_STATUS_EMOJI || '❤️')];
-            } else if (mode === 'random') {
-              emojis = String(liveCfg.CUSTOM_STATUS_EMOJIS || '❤️,🔥,💯').split(',').map(e => e.trim()).filter(Boolean);
-            } else {
-              emojis = ['❤️','🔥','💯','😍','🥰','👏','🎉','✨','💫','🌟'];
-            }
+            if (mode === 'custom') emojis = [String(liveCfg.CUSTOM_STATUS_EMOJI || '❤️')];
+            else if (mode === 'random') emojis = String(liveCfg.CUSTOM_STATUS_EMOJIS || '❤️,🔥,💯').split(',').map(e => e.trim()).filter(Boolean);
+            else emojis = ['❤️','🔥','💯','😍','🥰','👏','🎉','✨','💫','🌟'];
             const emoji = emojis[Math.floor(Math.random() * emojis.length)] || '❤️';
-            await conn.sendMessage('status@broadcast', {
-              react: { text: emoji, key: mek.key }
-            });
+            await conn.sendMessage('status@broadcast', { react: { text: emoji, key: mek.key } });
           } catch (e) {}
         }
         if (participant && String(liveCfg.AUTO_STATUS_REPLY) === 'true') {
@@ -555,7 +572,7 @@ function setupBotCommands(conn, options = {}) {
         return;
       }
 
-      // ✅ FIX: AUTO_REACT with CUSTOM_REACT support
+      // ✅ AUTO_REACT with CUSTOM_REACT support
       if (!isReact && !isCmd && String(liveCfg.AUTO_REACT) === 'true') {
         try {
           let emojis;
@@ -570,7 +587,7 @@ function setupBotCommands(conn, options = {}) {
         } catch (e) {}
       }
 
-      // ✅ FIX: AUTO_STICKER — convert incoming images to stickers
+      // ✅ AUTO_STICKER
       if (!isMe && !isCmd && String(liveCfg.AUTO_STICKER) === 'true' && type === 'imageMessage') {
         try {
           const buffer = await m.download();
@@ -608,10 +625,23 @@ function setupBotCommands(conn, options = {}) {
 
       if (finalCmd) {
         if (finalCmd.react) { try { conn.sendMessage(from, { react: { text: finalCmd.react, key: mek.key } }); } catch (e) {} }
-        // ✅ Note: AUTO_TYPING/RECORDING is now handled by attachPresenceWrapper
+
+        // ✅ ORIGINAL PRESENCE BLOCK (restored) — Auto Typing / Auto Recording for commands
+        const _presenceMode = await showPresence(conn, from);
+        if (_presenceMode) {
+          conn._presenceActive = true;
+          // small delay so the indicator is actually visible before the reply is sent
+          await new Promise(r => setTimeout(r, 500));
+        }
+
         try {
           await events.runCommand(finalCmd, conn, mek, m, { ...extras, isCmd: true, command: command || finalCmd.pattern });
         } catch (e) { console.error('[PLUGIN ERROR]', e.stack || e.message); }
+
+        if (_presenceMode) {
+          conn._presenceActive = false;
+          try { await conn.sendPresenceUpdate('paused', from); } catch (e) {}
+        }
       }
 
       const isViewOnce = !!(mek.message?.viewOnceMessageV2 || mek.message?.viewOnceMessageV2Extension || mek.message?.viewOnceMessage);
@@ -630,7 +660,7 @@ function setupBotCommands(conn, options = {}) {
 }
 
 // ═══════════════════════════════════════════════════
-//  🔧 CONNECTION HELPERS
+//  🔧 CONNECTION HELPERS (all preserved)
 // ═══════════════════════════════════════════════════
 function attachConnHelpers(conn) {
   const FileType = require('file-type');
@@ -800,6 +830,9 @@ function attachConnHelpers(conn) {
   return conn;
 }
 
+// ═══════════════════════════════════════════════════
+//  🎉 CONNECTED MESSAGE (unchanged)
+// ═══════════════════════════════════════════════════
 async function sendConnectedMessage(conn, isOwnerBot = false, userInfo = null) {
   try {
     const targetNumber = String(isOwnerBot ? config.OWNER_NUMBER : (userInfo?.phone || '')).replace(/[^0-9]/g, '');
@@ -831,7 +864,7 @@ global.handleAutoJoin = handleAutoJoin;
 console.log('✅ Global functions exposed');
 
 // ═══════════════════════════════════════════════════
-//  🌐 EXPRESS SERVER
+//  🌐 EXPRESS SERVER (all routes preserved)
 // ═══════════════════════════════════════════════════
 const app = express();
 const port = process.env.PORT || 8000;
@@ -1335,7 +1368,7 @@ app.get("/status", (req, res) => {
   const uptime = Math.floor((Date.now() - BOT_START_TIME) / 1000);
   res.json({
     status: botStatus.connected ? "online" : "offline",
-    bot: config.BOT_NAME, owner: config.OWNER_NAME, version: "3.1.0",
+    bot: config.BOT_NAME, owner: config.OWNER_NAME, version: "3.1.1",
     user: botStatus.user, uptime, uptimeFormatted: formatUptime(uptime),
     startedAt: new Date(BOT_START_TIME).toISOString(),
     lastUpdate: botStatus.lastUpdate, domain: global.BOT_DOMAIN,
@@ -1351,6 +1384,9 @@ app.get("/status", (req, res) => {
   });
 });
 
+// ═══════════════════════════════════════════════════
+//  🔌 OWNER WHATSAPP CONNECTION (unchanged)
+// ═══════════════════════════════════════════════════
 async function connectToWA() {
   if (ownerConnecting) return;
   if (ownerConn && botStatus.connected) return;
@@ -1467,6 +1503,9 @@ async function connectToWA() {
   }
 }
 
+// ═══════════════════════════════════════════════════
+//  🚀 STARTUP (unchanged)
+// ═══════════════════════════════════════════════════
 app.listen(port, () => console.log(`🌐 http://localhost:${port}`));
 
 (async () => {
