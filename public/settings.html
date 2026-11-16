@@ -8,6 +8,19 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shared.css">
 <script>const savedTheme = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-theme', savedTheme);</script>
+<script>
+// ── Auth guard ──
+(function() {
+  const urlKey = new URLSearchParams(window.location.search).get('key');
+  if (urlKey) return;
+  const savedKey = localStorage.getItem('qz_auth_key');
+  if (savedKey) {
+    window.location.replace('/settings?key=' + encodeURIComponent(savedKey));
+  } else {
+    window.location.href = '/login';
+  }
+})();
+</script>
 <style>
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px}
 @media(max-width:640px){.actions{grid-template-columns:1fr}}
@@ -111,7 +124,6 @@ function renderForm(cfg) {
   }
   document.getElementById('config-container').innerHTML = html;
 }
-// ==== Antilink / AntiDelete / Actions (unchanged API logic) ====
 async function saveConfig() {
   try {
     const payload = {};
