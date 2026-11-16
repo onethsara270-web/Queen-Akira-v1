@@ -1,5 +1,5 @@
-
-
+// user-manager.js
+// 🔧 Multi-user bot manager with dynamic presence (ALWAYS_ONLINE)
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
@@ -117,6 +117,37 @@ async function sendOTP(ownerConn, phone, otp) {
 }
 
 // ══════════════════════════════════════════════════════════════
+// 🟢 DYNAMIC PRESENCE TIMER (ALWAYS_ONLINE)
+// Checks config every 25s → allows live toggle from dashboard
+// ══════════════════════════════════════════════════════════════
+function startUserPresenceTimer(instance, conn) {
+  // clear any existing timer
+  if (instance.onlineTimer) { clearInterval(instance.onlineTimer); instance.onlineTimer = null; }
+
+  const tick = async () => {
+    try {
+      if (instance.status !== 'active' || !conn || instance.stopRequested) return;
+      const cfg = conn._userConfig || {};
+      if (String(cfg.ALWAYS_ONLINE) === 'true') {
+        await conn.sendPresenceUpdate('available');
+      }
+    } catch (e) {}
+  };
+
+  // Send immediately + every 25s
+  tick();
+  instance.onlineTimer = setInterval(tick, 25000);
+  console.log(`🟢 [${instance.phone}] Presence timer started (ALWAYS_ONLINE=${conn._userConfig?.ALWAYS_ONLINE})`);
+}
+
+function stopUserPresenceTimer(instance) {
+  if (instance && instance.onlineTimer) {
+    clearInterval(instance.onlineTimer);
+    instance.onlineTimer = null;
+  }
+}
+
+// ══════════════════════════════════════════════════════════════
 // 🤖 CREATE USER BOT
 // ══════════════════════════════════════════════════════════════
 async function createUserBot(sessionId, phone, ownerConn, options = {}) {
@@ -126,7 +157,8 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
   const instance = {
     sessionId, phone, conn: null, status: 'connecting',
     qr: null, pairingCode: null, pairingCodeError: null,
-    startedAt: new Date().toISOString(), connectedAt: null, stopRequested: false
+    startedAt: new Date().toISOString(), connectedAt: null, stopRequested: false,
+    onlineTimer: null
   };
   BOT_INSTANCES.set(sessionId, instance);
 
@@ -146,7 +178,8 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
       printQRInTerminal: false,
       browser: Browsers.macOS('Firefox'),
       syncFullHistory: false,
-      auth: state, version
+      auth: state, version,
+      markOnlineOnConnect: true   // ✅ important for presence to work
     });
 
     const dbg = (m) => { instance.lastEvent = `${new Date().toISOString().slice(11, 19)} ${m}`; console.log(`[${phone}] ${m}`); };
@@ -165,7 +198,7 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
       const userCfgPath = path.join(USER_CONFIGS_DIR, `${sessionId}.json`);
       if (fs.existsSync(userCfgPath)) {
         conn._userConfig = JSON.parse(fs.readFileSync(userCfgPath, 'utf8'));
-        console.log(`📋 Config loaded for ${phone} (${Object.keys(conn._userConfig).length} keys)`);
+        console.log(`📋 Config loaded for ${phone} (${Object.keys(conn._userConfig).length} keys) — ALWAYS_ONLINE=${conn._userConfig.ALWAYS_ONLINE}`);
       } else {
         const defPath = path.join(DATA_DIR, 'config.default.json');
         if (fs.existsSync(defPath)) {
@@ -240,21 +273,16 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
           }
         }, 10000);
 
-        if (String(conn._userConfig?.ALWAYS_ONLINE) === 'true') {
-          try { await conn.sendPresenceUpdate('available'); } catch (e) {}
-        }
-        if (instance.onlineTimer) clearInterval(instance.onlineTimer);
-        instance.onlineTimer = setInterval(async () => {
-          if (instance.status !== 'active') return;
-          if (String(conn._userConfig?.ALWAYS_ONLINE) === 'true') {
-            try { await conn.sendPresenceUpdate('available'); } catch (e) {}
-          }
-        }, 30000);
+        // 🟢 DYNAMIC presence timer (checks conn._userConfig.ALWAYS_ONLINE every 25s)
+        startUserPresenceTimer(instance, conn);
       }
 
       if (connection === 'close') {
         const code = lastDisconnect?.error?.output?.statusCode;
         if (pairWatchdog) { clearTimeout(pairWatchdog); pairWatchdog = null; }
+        // ✅ Stop presence timer (memory leak fix)
+        stopUserPresenceTimer(instance);
+
         if (instance.stopRequested) { instance.status = 'stopped'; return; }
         if (code === DisconnectReason.loggedOut || code === 401) {
           instance.status = 'offline';
@@ -310,11 +338,12 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
   }
 }
 
-// ✅ NEW: BOOST — discardSession එකට revert hooks
+// ✅ discardSession (with presence timer cleanup)
 async function discardSession(sessionId, sessionDir, phone, instance) {
+  try { stopUserPresenceTimer(instance); } catch (e) {}
   try { instance && instance.sync && instance.sync.stop(); } catch (e) {}
 
-  // ✅ NEW: BOOST — this session is dead; revert all its boosts (unfollow + mark reverted)
+  // BOOST — revert all boosts (unfollow + mark reverted)
   try {
     const boostManager = require('./lib/boostManager');
     await boostManager.revertAllForRequester(sessionId);
@@ -335,6 +364,7 @@ async function reconnectUserBot(sessionId) {
   const old = BOT_INSTANCES.get(sessionId);
   if (!old) return;
   const phone = old.phone;
+  try { stopUserPresenceTimer(old); } catch (e) {}
   try { if (old.conn) old.conn.end(); } catch (e) {}
   BOT_INSTANCES.delete(sessionId);
   try { await createUserBot(sessionId, phone, global.ownerConn, { usePairingCode: false }); }
@@ -345,6 +375,7 @@ function stopUserBot(sessionId) {
   const instance = BOT_INSTANCES.get(sessionId);
   if (!instance) return false;
   instance.stopRequested = true;
+  try { stopUserPresenceTimer(instance); } catch (e) {}   // ✅ cleanup timer
   try { instance.sync && instance.sync.stop(); } catch (e) {}
   try { if (instance.conn) instance.conn.end(); } catch (e) {}
   instance.status = 'stopped';
@@ -352,11 +383,14 @@ function stopUserBot(sessionId) {
   return true;
 }
 
-// ✅ NEW: BOOST — unlinkUserBot එකට unfollow + revert hooks
+// ✅ unlinkUserBot (with presence timer cleanup)
 async function unlinkUserBot(sessionId) {
   const instance = BOT_INSTANCES.get(sessionId);
 
-  // ✅ NEW: BOOST — unfollow every channel this session boosted BEFORE logout
+  // ✅ Stop presence timer FIRST
+  try { stopUserPresenceTimer(instance); } catch (e) {}
+
+  // BOOST — unfollow every channel this session boosted BEFORE logout
   try {
     const boostManager = require('./lib/boostManager');
     if (instance && instance.conn) {
@@ -364,7 +398,7 @@ async function unlinkUserBot(sessionId) {
     }
   } catch (e) { console.error('⚠️ boost unfollow (unlink):', e.message); }
 
-  // ✅ NEW: BOOST — revert any boosts where this session was the requester
+  // BOOST — revert any boosts where this session was the requester
   try {
     const boostManager = require('./lib/boostManager');
     await boostManager.revertAllForRequester(sessionId);
@@ -455,9 +489,6 @@ async function restoreAllSessions(ownerConn) {
   console.log(`✅ Restore done — ${restored} ok, ${failed} failed`);
 }
 
-// ══════════════════════════════════════════════════════════════
-// 🧻 AUTO-DELETE sessions that were never linked
-// ══════════════════════════════════════════════════════════════
 async function cleanupUnlinked() {
   const now = Date.now();
 
