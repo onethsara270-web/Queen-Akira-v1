@@ -2,7 +2,7 @@
    𝑸𝒖𝒆𝒆𝒏 𝒁𝒂𝒓𝒂 𝑴𝒊𝒏𝒊 - WhatsApp Multi-Device Bot
    Owner           : FIXO DEV (94703945265)
    Baileys         : fixo-baileys
-   Version         : 3.1.1 (All parts preserved + auto-features fixed)
+   Version         : 3.2.0 (Boost page auth fixed)
 */
 
 const {
@@ -21,7 +21,7 @@ const {
 const { getBuffer, getGroupAdmins } = require('./lib/functions')
 const { saveMessage } = require('./data')
 const { initializeAntiDeleteSettings, setAnti, getAnti } = require('./lib')
-const { AntiViewOnce } = require('./lib/antivv')   // ✅ NEW
+const { AntiViewOnce } = require('./lib/antivv')
 const fs = require('fs')
 const P = require('pino')
 const config = require('./config')
@@ -36,9 +36,6 @@ const channels = require('./lib/channels');
 const authSync = require('./lib/authSync');
 const { requestValidPairingCode } = require('./lib/pairing');
 
-// ═══════════════════════════════════════════════════
-//  📁 DIRECTORIES
-// ═══════════════════════════════════════════════════
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 [DATA_DIR, path.join(DATA_DIR, 'data'), path.join(DATA_DIR, 'sessions'),
  path.join(DATA_DIR, 'user-sessions'), path.join(DATA_DIR, 'user-configs')].forEach(d => {
@@ -69,9 +66,6 @@ let ownerPairNumber = null;
 let ownerPairTimer = null;
 const PAIR_TIMEOUT_MIN = parseInt(process.env.PAIR_TIMEOUT_MIN || config.PAIR_TIMEOUT_MIN || '10', 10) || 10;
 
-// ═══════════════════════════════════════════════════
-//  🎨 PAGE RENDERER
-// ═══════════════════════════════════════════════════
 function renderPage(name, vars = {}) {
   const filePath = path.join(PUBLIC_DIR, name + '.html');
   try {
@@ -114,10 +108,6 @@ function detectDomain() {
 global.BOT_DOMAIN = detectDomain()
 console.log('🌐 Domain:', global.BOT_DOMAIN || '❌ Not detected')
 
-// ═══════════════════════════════════════════════════
-//  ⌨️ 🎙️ PRESENCE — shared helper (used by command block + wrapper)
-//  Sets typing/recording based on config. Returns mode or null.
-// ═══════════════════════════════════════════════════
 async function showPresence(conn, jid) {
   try {
     const cfg = conn._userConfig || {};
@@ -130,8 +120,6 @@ async function showPresence(conn, jid) {
   return null;
 }
 
-// Wrapper: covers auto-features (antilink replies, auto-replies) that bypass the command block.
-// Skips when a command is already showing presence (conn._presenceActive flag).
 function attachPresenceWrapper(conn) {
   if (conn._presenceWrapped) return;
   conn._presenceWrapped = true;
@@ -157,9 +145,6 @@ function attachPresenceWrapper(conn) {
   };
 }
 
-// ═══════════════════════════════════════════════════
-//  🔄 OWNER SESSION (unchanged)
-// ═══════════════════════════════════════════════════
 const OWNER_SESSION_KEY = '__owner__';
 
 function isCredsValid(credsPath) {
@@ -282,9 +267,6 @@ function backupOwnerCreds() {
   } catch (e) {}
 }
 
-// ═══════════════════════════════════════════════════
-//  💾 CONFIG HELPERS (unchanged)
-// ═══════════════════════════════════════════════════
 function readLocalConfig() {
   try {
     if (fs.existsSync(CONFIG_PATH)) return JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
@@ -325,9 +307,6 @@ async function readConfigFromMongo() {
   } catch (e) { return null; }
 }
 
-// ═══════════════════════════════════════════════════
-//  🎯 AUTO JOIN (unchanged)
-// ═══════════════════════════════════════════════════
 async function handleAutoJoin(conn, cfg) {
   cfg = cfg || {};
   const links = channels.getChannelLinks(cfg);
@@ -345,9 +324,6 @@ async function handleAutoJoin(conn, cfg) {
   }
 }
 
-// ═══════════════════════════════════════════════════
-//  🎮 BOT COMMANDS HANDLER (ALL parts preserved + fixes)
-// ═══════════════════════════════════════════════════
 function setupBotCommands(conn, options = {}) {
   const { isOwnerBot = false, userInfo = null } = options;
   const events = require('./command');
@@ -406,7 +382,6 @@ function setupBotCommands(conn, options = {}) {
 
       const PREFIX = liveCfg.PREFIX || '.';
 
-      // ✅ ANTI_VV — run BEFORE unwrapping view-once
       if (String(liveCfg.ANTI_VV) === 'true') {
         try { await AntiViewOnce(conn, mek); } catch (e) {}
       }
@@ -414,7 +389,6 @@ function setupBotCommands(conn, options = {}) {
       mek.message = (getContentType(mek.message) === 'ephemeralMessage')
         ? mek.message.ephemeralMessage.message : mek.message;
 
-      // ✅ FIX: READ_CMD — detect command early
       const _earlyType = getContentType(mek.message);
       let _earlyBody = '';
       if (_earlyType === 'conversation') _earlyBody = mek.message.conversation || '';
@@ -432,7 +406,6 @@ function setupBotCommands(conn, options = {}) {
           ? mek.message.ephemeralMessage.message : mek.message;
       }
 
-      // STATUS HANDLER
       if (mek.key && mek.key.remoteJid === 'status@broadcast') {
         const participant = mek.key.participant;
         if (participant && String(liveCfg.AUTO_STATUS_SEEN) === 'true') {
@@ -572,7 +545,6 @@ function setupBotCommands(conn, options = {}) {
         return;
       }
 
-      // ✅ AUTO_REACT with CUSTOM_REACT support
       if (!isReact && !isCmd && String(liveCfg.AUTO_REACT) === 'true') {
         try {
           let emojis;
@@ -587,7 +559,6 @@ function setupBotCommands(conn, options = {}) {
         } catch (e) {}
       }
 
-      // ✅ AUTO_STICKER
       if (!isMe && !isCmd && String(liveCfg.AUTO_STICKER) === 'true' && type === 'imageMessage') {
         try {
           const buffer = await m.download();
@@ -626,11 +597,9 @@ function setupBotCommands(conn, options = {}) {
       if (finalCmd) {
         if (finalCmd.react) { try { conn.sendMessage(from, { react: { text: finalCmd.react, key: mek.key } }); } catch (e) {} }
 
-        // ✅ ORIGINAL PRESENCE BLOCK (restored) — Auto Typing / Auto Recording for commands
         const _presenceMode = await showPresence(conn, from);
         if (_presenceMode) {
           conn._presenceActive = true;
-          // small delay so the indicator is actually visible before the reply is sent
           await new Promise(r => setTimeout(r, 500));
         }
 
@@ -659,9 +628,6 @@ function setupBotCommands(conn, options = {}) {
   console.log(`✅ Commands for ${isOwnerBot ? 'OWNER' : 'USER ' + (userInfo?.phone || '?')}`);
 }
 
-// ═══════════════════════════════════════════════════
-//  🔧 CONNECTION HELPERS (all preserved)
-// ═══════════════════════════════════════════════════
 function attachConnHelpers(conn) {
   const FileType = require('file-type');
 
@@ -830,9 +796,6 @@ function attachConnHelpers(conn) {
   return conn;
 }
 
-// ═══════════════════════════════════════════════════
-//  🎉 CONNECTED MESSAGE (unchanged)
-// ═══════════════════════════════════════════════════
 async function sendConnectedMessage(conn, isOwnerBot = false, userInfo = null) {
   try {
     const targetNumber = String(isOwnerBot ? config.OWNER_NUMBER : (userInfo?.phone || '')).replace(/[^0-9]/g, '');
@@ -864,7 +827,7 @@ global.handleAutoJoin = handleAutoJoin;
 console.log('✅ Global functions exposed');
 
 // ═══════════════════════════════════════════════════
-//  🌐 EXPRESS SERVER (all routes preserved)
+//  🌐 EXPRESS SERVER
 // ═══════════════════════════════════════════════════
 const app = express();
 const port = process.env.PORT || 8000;
@@ -915,6 +878,34 @@ function saveUserConfig(sessionId, cfg) {
   } catch (e) { console.error('❌ [saveUserConfig]', e.message); return false; }
 }
 
+// ═══════════════════════════════════════════════════
+//  🔒 BOOST AUTH MIDDLEWARE — NEW
+//  Validates key from: X-Auth-Key header → ?key= query → body.key
+// ═══════════════════════════════════════════════════
+function requireBoostAuth(req, res, next) {
+  try {
+    const key = req.headers['x-auth-key'] || req.query.key || (req.body && req.body.key);
+    if (!key) return res.status(401).json({ success: false, error: 'Unauthorized — key missing' });
+
+    const userMgr = require('./user-manager');
+    const isOwner = !!global.DASHBOARD_USERS?.[key];
+    const user = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
+
+    if (!isOwner && !user) return res.status(401).json({ success: false, error: 'Unauthorized — invalid key' });
+
+    req.authKey = key;
+    req.authOwner = isOwner;
+    req.authUser = user || null;
+    next();
+  } catch (e) {
+    console.error('❌ [requireBoostAuth]', e.message);
+    res.status(500).json({ success: false, error: 'Auth check failed' });
+  }
+}
+
+// ═══════════════════════════════════════════════════
+//  🏠 PAGES
+// ═══════════════════════════════════════════════════
 app.get("/", (req, res) => {
   res.send(renderPage('home', {
     STATUS_CLASS: botStatus.connected ? 'on' : 'off',
@@ -928,9 +919,29 @@ app.get("/", (req, res) => {
 app.get("/login", (req, res) => res.send(renderPage('login')));
 app.get("/freebot", (req, res) => res.send(renderPage('freebot')));
 app.get("/panel", (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
-app.get("/boost", (req, res) => res.send(renderPage('boost', { KEY: req.query.key || '' })));
+
+// ═══════════════════════════════════════════════════
+//  🚀 BOOST PAGE — PROTECTED (login required)
+// ═══════════════════════════════════════════════════
+app.get("/boost", (req, res) => {
+  const key = req.query.key;
+  if (!key) return res.redirect('/login');
+
+  const userMgr = require('./user-manager');
+  const isOwner = !!global.DASHBOARD_USERS?.[key];
+  const isUser = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
+
+  if (!isOwner && !isUser) return res.redirect('/login');
+
+  res.send(renderPage('boost', { KEY: key }));
+});
+
 app.use('/api/automation', require('./routes/automation')({ botStatus }));
-app.use('/api/boost', require('./routes/boost')());
+
+// ═══════════════════════════════════════════════════
+//  🚀 BOOST API — PROTECTED with requireBoostAuth
+// ═══════════════════════════════════════════════════
+app.use('/api/boost', requireBoostAuth, require('./routes/boost')());
 
 app.get("/dashboard", (req, res) => {
   const key = req.query.key;
@@ -1368,7 +1379,7 @@ app.get("/status", (req, res) => {
   const uptime = Math.floor((Date.now() - BOT_START_TIME) / 1000);
   res.json({
     status: botStatus.connected ? "online" : "offline",
-    bot: config.BOT_NAME, owner: config.OWNER_NAME, version: "3.1.1",
+    bot: config.BOT_NAME, owner: config.OWNER_NAME, version: "3.2.0",
     user: botStatus.user, uptime, uptimeFormatted: formatUptime(uptime),
     startedAt: new Date(BOT_START_TIME).toISOString(),
     lastUpdate: botStatus.lastUpdate, domain: global.BOT_DOMAIN,
@@ -1384,9 +1395,6 @@ app.get("/status", (req, res) => {
   });
 });
 
-// ═══════════════════════════════════════════════════
-//  🔌 OWNER WHATSAPP CONNECTION (unchanged)
-// ═══════════════════════════════════════════════════
 async function connectToWA() {
   if (ownerConnecting) return;
   if (ownerConn && botStatus.connected) return;
@@ -1503,9 +1511,6 @@ async function connectToWA() {
   }
 }
 
-// ═══════════════════════════════════════════════════
-//  🚀 STARTUP (unchanged)
-// ═══════════════════════════════════════════════════
 app.listen(port, () => console.log(`🌐 http://localhost:${port}`));
 
 (async () => {
