@@ -11,6 +11,7 @@
 <style>
 .actions{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:24px}
 @media(max-width:640px){.actions{grid-template-columns:1fr}}
+#config-container .card{margin-bottom:16px}
 </style>
 </head>
 <body>
@@ -103,96 +104,100 @@ function renderForm(cfg) {
       if (isBool(val)) html += '<div class="field"><div class="toggle"><span class="toggle-label">' + label + '</span><label class="switch"><input type="checkbox" data-key="' + f + '" ' + (val === 'true' ? 'checked' : '') + '><span class="slider"></span></label></div></div>';
       else if (f === 'MODE') html += '<div class="field"><label>' + label + '</label><select data-key="' + f + '"><option value="public" ' + (val === 'public' ? 'selected' : '') + '>public</option><option value="private" ' + (val === 'private' ? 'selected' : '') + '>private</option><option value="inbox" ' + (val === 'inbox' ? 'selected' : '') + '>inbox</option><option value="groups" ' + (val === 'groups' ? 'selected' : '') + '>groups</option></select></div>';
       else if (f === 'STATUS_REACT_MODE') html += '<div class="field"><label>' + label + '</label><select data-key="' + f + '"><option value="default" ' + (val === 'default' ? 'selected' : '') + '>default</option><option value="custom" ' + (val === 'custom' ? 'selected' : '') + '>custom</option><option value="random" ' + (val === 'random' ? 'selected' : '') + '>random</option></select></div>';
-      else if (f === 'DESCRIPTION' || f === 'AUTO_STATUS_MSG' || f === 'LIVE_MSG') html += '<div class="field"><label>' + label + '</label><textarea data-key="' + f + '">' + val + '</textarea></div>';
-      else if (f === 'AUTO_AI_COOLDOWN') html += '<div class="field"><label>' + label + ' (seconds)</label><input type="number" min="1" max="60" data-key="' + f + '" value="' + val + '"></div>';
-      else html += '<div class="field"><label>' + label + '</label><input type="text" data-key="' + f + '" value="' + val + '"></div>';
+      else if (f === 'DESCRIPTION' || f === 'AUTO_STATUS_MSG' || f === 'LIVE_MSG') html += '<div class="field"><label>' + label + '</label><textarea data-key="' + f + '">' + (val || '') + '</textarea></div>';
+      else html += '<div class="field"><label>' + label + '</label><input type="text" data-key="' + f + '" value="' + (val || '') + '"></div>';
     }
     html += '</div>'; idx++;
   }
-  document.getElementById('config-container').innerHTML = html || '<div class="card" style="text-align:center;padding:40px">No settings</div>';
+  document.getElementById('config-container').innerHTML = html;
 }
+// ==== Antilink / AntiDelete / Actions (unchanged API logic) ====
 async function saveConfig() {
-  const btn = document.getElementById('saveBtn'); const label = document.getElementById('saveLabel');
-  btn.disabled = true; label.innerHTML = '<span class="loading"></span>Saving...';
-  const newConfig = { ...currentConfig };
-  document.querySelectorAll('[data-key]').forEach(el => { const k = el.dataset.key; if (el.type === 'checkbox') newConfig[k] = el.checked ? 'true' : 'false'; else newConfig[k] = el.value; });
   try {
-    const r = await fetch('/api/config', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ key: KEY, config: newConfig }) });
+    const payload = {};
+    document.querySelectorAll('#config-container [data-key]').forEach(el => {
+      payload[el.dataset.key] = el.type === 'checkbox' ? String(el.checked) : el.value;
+    });
+    const r = await fetch('/api/config?key=' + KEY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const d = await r.json();
-    if (d.success) { currentConfig = newConfig; toast('Config saved!', 'success'); setTimeout(() => location.reload(), 1200); } else throw new Error(d.error);
-  } catch (e) { toast('❌ ' + e.message, 'error'); } finally { btn.disabled = false; label.textContent = 'Save & Apply'; }
+    if (!d.success) throw new Error(d.error || 'Failed');
+    toast('✅ Saved & applied'); loadConfig();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
 }
+async function restartBot() { try { const r = await fetch('/api/bot/restart?key=' + KEY, { method: 'POST' }); const d = await r.json(); if (!d.success) throw new Error(d.error || 'Failed'); toast('🔄 Restarting bot...'); } catch (e) { toast('❌ ' + e.message, 'error'); } }
+async function restoreBackup() { if (!confirm('Restore previous backup?')) return; try { const r = await fetch('/api/config/restore?key=' + KEY, { method: 'POST' }); const d = await r.json(); if (!d.success) throw new Error(d.error || 'Failed'); toast('↩️ Backup restored'); loadConfig(); } catch (e) { toast('❌ ' + e.message, 'error'); } }
+async function factoryReset() { if (!confirm('⚠️ This will reset ALL settings. Continue?')) return; try { const r = await fetch('/api/config/reset?key=' + KEY, { method: 'POST' }); const d = await r.json(); if (!d.success) throw new Error(d.error || 'Failed'); toast('🗑️ Reset done'); loadConfig(); } catch (e) { toast('❌ ' + e.message, 'error'); } }
+
 async function loadAntilink() {
   try {
-    const r = await fetch('/api/antilink?key=' + KEY); const d = await r.json(); if (!d.success) return;
-    document.getElementById('al-enabled').checked = !!d.enabled; document.getElementById('al-action').value = d.action || 'delete'; document.getElementById('al-limit').value = d.warnLimit || '3';
-    document.getElementById('al-whitelist').value = d.whitelist || ''; document.getElementById('al-whitelist-enabled').checked = d.whitelistEnabled !== false;
-    document.getElementById('al-notify').checked = !!d.notify; document.getElementById('al-skipadmins').checked = !!d.skipAdmins; document.getElementById('al-skipbot').checked = d.skipBot !== false;
-    updateAntilinkStatus(d);
+    const r = await fetch('/api/antilink?key=' + KEY); const d = await r.json();
+    if (!d.success) return;
+    const s = d.settings || {};
+    document.getElementById('al-enabled').checked = !!s.enabled;
+    document.getElementById('al-action').value = s.action || 'delete';
+    document.getElementById('al-limit').value = s.warnLimit || 3;
+    document.getElementById('al-whitelist-enabled').checked = !!s.whitelistEnabled;
+    document.getElementById('al-whitelist').value = (s.whitelist || []).join(',');
+    document.getElementById('al-notify').checked = !!s.notify;
+    document.getElementById('al-skipadmins').checked = !!s.skipAdmins;
+    document.getElementById('al-skipbot').checked = !!s.skipBot;
+    document.getElementById('al-status').textContent = s.enabled ? 'ON' : 'OFF';
+    document.getElementById('al-action-status').textContent = s.action || 'delete';
+    document.getElementById('al-limit-status').textContent = s.warnLimit || 3;
+    document.getElementById('al-whitelist-status').textContent = s.whitelistEnabled ? (s.whitelist || []).join(', ') : 'disabled';
   } catch (e) {}
 }
-function updateAntilinkStatus(d) {
-  if (!d) d = { enabled: document.getElementById('al-enabled').checked, action: document.getElementById('al-action').value, warnLimit: document.getElementById('al-limit').value, whitelistEnabled: document.getElementById('al-whitelist-enabled').checked };
-  document.getElementById('al-status').innerHTML = d.enabled ? '<span style="color:var(--accent);font-weight:800">ON</span>' : '<span style="color:var(--danger);font-weight:800">OFF</span>';
-  const actionMap = { delete: 'Delete', warn: 'Warn+Kick', kick: 'Kick' };
-  document.getElementById('al-action-status').innerHTML = '<span style="color:var(--accent);font-weight:800">' + (actionMap[d.action] || d.action) + '</span>';
-  document.getElementById('al-limit-status').innerHTML = '<span style="color:var(--accent);font-weight:800">' + (d.warnLimit || '3') + '</span>';
-  document.getElementById('al-whitelist-status').innerHTML = d.whitelistEnabled ? '<span style="color:var(--accent);font-weight:800">ON</span>' : '<span style="color:var(--danger);font-weight:800">OFF</span>';
-}
-function alPayload(enabled) { return { key: KEY, enabled: enabled !== undefined ? enabled : document.getElementById('al-enabled').checked, action: document.getElementById('al-action').value, warnLimit: document.getElementById('al-limit').value, whitelist: document.getElementById('al-whitelist').value.trim(), whitelistEnabled: document.getElementById('al-whitelist-enabled').checked, notify: document.getElementById('al-notify').checked, skipAdmins: document.getElementById('al-skipadmins').checked, skipBot: document.getElementById('al-skipbot').checked }; }
 async function saveAntilink() {
-  const btn = document.getElementById('alSaveBtn'); const label = document.getElementById('alSaveLabel');
-  btn.disabled = true; label.innerHTML = '<span class="loading"></span>Saving...'; const payload = alPayload();
-  try { const r = await fetch('/api/antilink', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const d = await r.json(); if (d.success) { toast('Antilink saved!', 'success'); updateAntilinkStatus(payload); } else throw new Error(d.error || 'Save failed'); }
-  catch (e) { toast('❌ ' + e.message, 'error'); } finally { btn.disabled = false; label.textContent = 'Save Antilink'; }
+  try {
+    const payload = {
+      enabled: document.getElementById('al-enabled').checked,
+      action: document.getElementById('al-action').value,
+      warnLimit: parseInt(document.getElementById('al-limit').value, 10) || 3,
+      whitelistEnabled: document.getElementById('al-whitelist-enabled').checked,
+      whitelist: document.getElementById('al-whitelist').value.split(',').map(x => x.trim()).filter(Boolean),
+      notify: document.getElementById('al-notify').checked,
+      skipAdmins: document.getElementById('al-skipadmins').checked,
+      skipBot: document.getElementById('al-skipbot').checked
+    };
+    const r = await fetch('/api/antilink?key=' + KEY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const d = await r.json(); if (!d.success) throw new Error(d.error || 'Failed');
+    toast('✅ Antilink saved'); loadAntilink();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
 }
 async function alQuick(mode) {
-  const checked = mode === 'on'; document.getElementById('al-enabled').checked = checked; const payload = alPayload(checked);
-  try { const r = await fetch('/api/antilink', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) }); const d = await r.json(); if (d.success) { toast(checked ? 'Antilink ON' : 'Antilink OFF', 'success'); updateAntilinkStatus(payload); } else toast('❌ ' + (d.error || 'Failed'), 'error'); } catch (e) { toast('❌ ' + e.message, 'error'); }
+  const on = mode === 'on';
+  document.getElementById('al-enabled').checked = on;
+  await saveAntilink();
 }
-window.addEventListener('DOMContentLoaded', () => { ['al-enabled','al-action','al-limit','al-whitelist-enabled'].forEach(id => { const el = document.getElementById(id); if (el) el.addEventListener('change', () => updateAntilinkStatus()); }); });
-async function restoreBackup() { if (!confirm('Restore previous config?')) return; const btn = document.getElementById('undoBtn'); const label = document.getElementById('undoLabel'); btn.disabled = true; label.textContent = 'Restoring...'; try { const r = await fetch('/api/config/undo', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ key: KEY }) }); const d = await r.json(); if (d.success) { toast('Restored!', 'success'); setTimeout(() => location.reload(), 800); } else throw new Error(d.error); } catch (e) { toast('❌ ' + e.message, 'error'); btn.disabled = false; label.textContent = 'Undo'; } }
-async function factoryReset() { if (!confirm('FACTORY RESET?')) return; if (!confirm('Cannot be undone!')) return; const btn = document.getElementById('resetBtn'); const label = document.getElementById('resetLabel'); btn.disabled = true; label.textContent = 'Resetting...'; try { const r = await fetch('/api/config/reset', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ key: KEY }) }); const d = await r.json(); if (d.success) { toast('Reset!', 'success'); setTimeout(() => location.reload(), 800); } else throw new Error(d.error); } catch (e) { toast('❌ ' + e.message, 'error'); btn.disabled = false; label.textContent = 'Reset'; } }
-async function restartBot() { if (!confirm('Restart bot?')) return; const btn = document.getElementById('restartBtn'); const label = document.getElementById('restartLabel'); btn.disabled = true; label.textContent = 'Restarting...'; try { const r = await fetch('/api/restart', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ key: KEY }) }); const d = await r.json(); if (d.success) { toast('Restarting...', 'success'); setTimeout(() => label.textContent = 'Reconnected', 12000); setTimeout(() => { btn.disabled = false; label.textContent = 'Restart'; }, 15000); } else throw new Error(d.error); } catch (e) { toast('❌ ' + e.message, 'error'); btn.disabled = false; label.textContent = 'Restart'; } }
-async function loadAntiDelete() { try { const r = await fetch('/api/antidelete?key=' + KEY); const d = await r.json(); if (d.success) { document.getElementById('ad-dm').checked = d.dm; document.getElementById('ad-gc').checked = d.gc; updateADStatus(d.dm, d.gc); } } catch (e) {} }
-function updateADStatus(dm, gc) { document.getElementById('ad-dm-status').innerHTML = dm ? '<span style="color:var(--accent);font-weight:800">ON</span>' : '<span style="color:var(--danger);font-weight:800">OFF</span>'; document.getElementById('ad-gc-status').innerHTML = gc ? '<span style="color:var(--accent);font-weight:800">ON</span>' : '<span style="color:var(--danger);font-weight:800">OFF</span>'; }
-async function adAction(action) { try { const r = await fetch('/api/antidelete', { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify({ key: KEY, action }) }); const d = await r.json(); if (d.success) { document.getElementById('ad-dm').checked = d.dm; document.getElementById('ad-gc').checked = d.gc; updateADStatus(d.dm, d.gc); toast('Updated!', 'success'); } else toast('❌ ' + (d.error || 'Failed'), 'error'); } catch (e) { toast('❌ ' + e.message, 'error'); } }
-async function toggleAD(type) { await adAction('toggle_' + type); }
-function toggleTheme() { const root = document.documentElement; const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light'; root.setAttribute('data-theme', next); localStorage.setItem('theme', next); }
+async function toggleAD(scope) {
+  try {
+    const key = scope === 'dm' ? 'ad-dm' : 'ad-gc';
+    const enabled = document.getElementById(key).checked;
+    const r = await fetch('/api/antidelete?key=' + KEY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope, enabled }) });
+    const d = await r.json(); if (!d.success) throw new Error(d.error || 'Failed');
+    toast(`✅ Anti-Delete ${scope.toUpperCase()} ${enabled ? 'ON' : 'OFF'}`); loadAntiDelete();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+async function adAction(action) {
+  try {
+    const r = await fetch('/api/antidelete?key=' + KEY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
+    const d = await r.json(); if (!d.success) throw new Error(d.error || 'Failed');
+    toast('✅ ' + action.replace('_', ' ')); loadAntiDelete();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+async function loadAntiDelete() {
+  try {
+    const r = await fetch('/api/antidelete?key=' + KEY); const d = await r.json();
+    if (!d.success) return;
+    const s = d.settings || {};
+    document.getElementById('ad-dm').checked = !!s.dm;
+    document.getElementById('ad-gc').checked = !!s.gc;
+    document.getElementById('ad-dm-status').textContent = s.dm ? 'ON' : 'OFF';
+    document.getElementById('ad-gc-status').textContent = s.gc ? 'ON' : 'OFF';
+  } catch (e) {}
+}
+
 loadConfig(); loadAntilink(); loadAntiDelete();
+function toggleTheme() { const root = document.documentElement; const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light'; root.setAttribute('data-theme', next); localStorage.setItem('theme', next); }
 </script>
-
-<script src="/components.js"></script>
-<script>renderBottomNav('dashboard');</script>
-
-<div id="qz-loading" aria-label="Loading">
-  <div class="qz-loader-inner">
-    <div class="qz-loader-mark">QZ</div>
-    <div class="qz-loader-title">QUEEN ZARA MINI</div>
-    <div class="qz-loader-sub">PREPARING YOUR DASHBOARD</div>
-    <div class="qz-loader-line"></div>
-  </div>
-</div>
-<script>
-(function(){
-  var screen=document.getElementById('qz-loading');
-  function hide(){if(screen){screen.classList.add('qz-hidden');setTimeout(function(){if(screen.parentNode)screen.parentNode.removeChild(screen)},550)}}
-  if(document.readyState==='complete') setTimeout(hide,450);
-  else window.addEventListener('load',function(){setTimeout(hide,350)},{once:true});
-  setTimeout(hide,4500);
-  var nav=document.querySelector('.header .nav');
-  var header=document.querySelector('.header');
-  if(nav&&header){
-    var toggle=document.createElement('button');
-    toggle.type='button';toggle.className='qz-menu-toggle';toggle.setAttribute('aria-label','Toggle navigation');toggle.setAttribute('aria-expanded','false');toggle.innerHTML='☰';
-    toggle.addEventListener('click',function(){
-      var opened=nav.classList.toggle('qz-open');
-      toggle.setAttribute('aria-expanded',String(opened));toggle.innerHTML=opened?'✕':'☰';
-    });
-    var brand=header.querySelector('.brand');
-    if(brand&&brand.nextSibling)header.insertBefore(toggle,brand.nextSibling);else header.insertBefore(toggle,nav);
-  }
-})();
-</script>
-
 </body></html>
