@@ -14,13 +14,14 @@ const baileys = (() => {
 const { proto, generateWAMessageFromContent, prepareWAMessageMedia } = baileys;
 
 // ============ CONFIG ============
+const BOT_NAME = "𝑸𝒖𝒆𝒆𝒏 𝒁𝒂𝒓𝒂 𝑴𝒊𝒏𝒊";
+const DEFAULT_FOOTER = `© 𝑸𝒖𝒆𝒆𝒏 𝒁𝒂𝒓𝒂 𝑴𝒊𝒏𝒊`;
 const AI_MARK = true;
 const CAROUSEL_AI_MARK = false;
 const ELITE_API = "https://eliteprotech-apis.zone.id/download/ytmp3";
 const NIMA_API = process.env.NIMA_YT_API_URL || "https://nima-song-api-nocache.up.railway.app";
 const MAX_SECONDS = 20 * 60;
 const MAX_RESULTS = 8;
-const DEFAULT_FOOTER = "© Powered by Zepix-AI";
 const BTN_PREFIX = "zytdl";
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -308,7 +309,7 @@ async function handleDownload({ conn, mek, sender, type, id }) {
     await react(conn, sender, mek.key, "📥");
 
     step = "status";
-    status = await sendText(conn, sender, { text: `🤖 *ZYRA AI Agent*\n\n🔎 Getting info...\n▰▱▱▱▱` });
+    status = await sendText(conn, sender, { text: `🤖 *${BOT_NAME}*\n\n🔎 Getting info...\n▰▱▱▱▱` });
     const key = status.key;
     console.log(`[song] step=${step} OK`);
 
@@ -321,7 +322,7 @@ async function handleDownload({ conn, mek, sender, type, id }) {
         const seconds = video.seconds ?? 0;
         if (seconds > MAX_SECONDS) {
           return await editMsg(conn, sender, key,
-            `🤖 *ZYRA AI Agent*\n\n⚠️ Too long (${Math.floor(seconds / 60)} min). Pick one under 20 minutes.`);
+            `🤖 *${BOT_NAME}*\n\n⚠️ Too long (${Math.floor(seconds / 60)} min). Pick one under 20 minutes.`);
         }
       }
     } catch (e) {
@@ -333,7 +334,7 @@ async function handleDownload({ conn, mek, sender, type, id }) {
 
     step = "edit";
     await editMsg(conn, sender, key,
-      `🤖 *ZYRA AI Agent*\n\n✅ *Found!*\n🎶 ${title}\n\n⬇️ Downloading ${type === "voice" ? "Voice" : "Audio"}...\n▰▰▰▱▱`);
+      `🤖 *${BOT_NAME}*\n\n✅ *Found!*\n🎶 ${title}\n\n⬇️ Downloading ${type === "voice" ? "Voice" : "Audio"}...\n▰▰▰▱▱`);
 
     step = "download";
     let buf, mime;
@@ -375,12 +376,12 @@ async function handleDownload({ conn, mek, sender, type, id }) {
 
     step = "final";
     await editMsg(conn, sender, key,
-      `🤖 *ZYRA AI Agent*\n\n✅ *Done!*\n🎶 ${title}\n▰▰▰▰▰\n\n_Thanks for using Zepix-AI_ 💚`);
+      `🤖 *${BOT_NAME}*\n\n✅ *Done!*\n🎶 ${title}\n▰▰▰▰▰\n\n_Thanks for using ${BOT_NAME}_ 💚`);
     await react(conn, sender, mek.key, "✅");
   } catch (e) {
     console.error(`[song] Download error at step "${step}":`, e);
     await react(conn, sender, mek.key, "❌");
-    const text = `🤖 *ZYRA AI Agent*\n\n❌ Download failed.\n_[${step}] ${errText(e)}_`;
+    const text = `🤖 *${BOT_NAME}*\n\n❌ Download failed.\n_[${step}] ${errText(e)}_`;
     if (status?.key) {
       await editMsg(conn, sender, status.key, text);
     } else {
@@ -395,11 +396,11 @@ async function handleSearch({ conn, mek, sender, footer, query }) {
   try {
     await react(conn, sender, mek.key, "🔎");
 
-    status = await sendText(conn, sender, { text: `🤖 *ZYRA AI Agent*\n\n🔎 Searching _"${query}"_...\n▱▱▱▱▱` }, mek);
+    status = await sendText(conn, sender, { text: `🤖 *${BOT_NAME}*\n\n🔎 Searching _"${query}"_...\n▱▱▱▱▱` }, mek);
     const key = status.key;
 
     await sleep(600);
-    await editMsg(conn, sender, key, `🤖 *ZYRA AI Agent*\n\n🧠 Scanning YouTube...\n▰▰▱▱▱`);
+    await editMsg(conn, sender, key, `🤖 *${BOT_NAME}*\n\n🧠 Scanning YouTube...\n▰▰▱▱▱`);
 
     let videos = [];
     const urlId = extractId(query);
@@ -414,11 +415,11 @@ async function handleSearch({ conn, mek, sender, footer, query }) {
     if (!videos.length) {
       await react(conn, sender, mek.key, "❌");
       return await editMsg(conn, sender, key,
-        `🤖 *ZYRA AI Agent*\n\n❌ No results for "${query}".`);
+        `🤖 *${BOT_NAME}*\n\n❌ No results for "${query}".`);
     }
 
     await editMsg(conn, sender, key,
-      `🤖 *ZYRA AI Agent*\n\n✅ *${videos.length} results found!*\n\n🖼️ Building cards...\n▰▰▰▰▱`);
+      `🤖 *${BOT_NAME}*\n\n✅ *${videos.length} results found!*\n\n🖼️ Building cards...\n▰▰▰▰▱`);
 
     try {
       await sendCarousel(conn, sender, mek, query, videos, footer);
@@ -428,14 +429,14 @@ async function handleSearch({ conn, mek, sender, footer, query }) {
     }
 
     await editMsg(conn, sender, key,
-      `🤖 *ZYRA AI Agent*\n\n✅ *${videos.length} results found!*\n👉 Swipe and tap a button.\n▰▰▰▰▰`);
+      `🤖 *${BOT_NAME}*\n\n✅ *${videos.length} results found!*\n👉 Swipe and tap a button.\n▰▰▰▰▰`);
     await react(conn, sender, mek.key, "✅");
   } catch (e) {
     console.error("[song] Search error:", e);
     await react(conn, sender, mek.key, "❌");
     if (status?.key) {
       await editMsg(conn, sender, status.key,
-        `🤖 *ZYRA AI Agent*\n\n❌ Search error.\n_${errText(e)}_`);
+        `🤖 *${BOT_NAME}*\n\n❌ Search error.\n_${errText(e)}_`);
     } else {
       await sendText(conn, sender, { text: "❌ Search error." }, mek);
     }
@@ -458,6 +459,7 @@ cmd({
   if (!q) {
     return reply(`🎵 *Song name or YouTube link:*\n\nExample: .song Sanda Eliye`);
   }
+  // Footer priority: per-bot config → default (bot name)
   const footer = botConfig?.BOT_FOOTER || DEFAULT_FOOTER;
   return await handleSearch({ conn, mek, sender: from, footer, query: q });
 });
