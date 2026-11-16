@@ -86,6 +86,10 @@ async function handleLogin(e){
     const r = await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pass})});
     const d = await r.json();
     if(d.success){
+      // ✅ Save session so next visits skip login
+      localStorage.setItem('qz_auth_key', pass);
+      localStorage.setItem('qz_auth_type', d.type);
+
       if(d.type === 'owner') window.location.href='/dashboard?key='+encodeURIComponent(pass);
       else window.location.href='/user/settings?key='+encodeURIComponent(pass);
       return false;
@@ -98,6 +102,33 @@ async function handleLogin(e){
 }
 document.getElementById('pass').addEventListener('input', function(){ this.value = this.value.replace(/[^0-9a-zA-Z]/g, '').slice(0, 20); });
 function toggleTheme() { const root = document.documentElement; const next = root.getAttribute('data-theme') === 'light' ? 'dark' : 'light'; root.setAttribute('data-theme', next); localStorage.setItem('theme', next); }
+
+// ── Auto-login: redirect if already logged in ──
+(async function autoLogin() {
+  const savedKey = localStorage.getItem('qz_auth_key');
+  if (!savedKey) return;
+  try {
+    const r = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: savedKey })
+    });
+    const d = await r.json();
+    if (d.success) {
+      if (d.type === 'owner') {
+        window.location.replace('/dashboard?key=' + encodeURIComponent(savedKey));
+      } else {
+        window.location.replace('/user/settings?key=' + encodeURIComponent(savedKey));
+      }
+    } else {
+      // Session invalid → clear saved key
+      localStorage.removeItem('qz_auth_key');
+      localStorage.removeItem('qz_auth_type');
+    }
+  } catch (e) {
+    // Network error → do nothing, stay on login
+  }
+})();
 </script>
 
 <script src="/components.js"></script>
