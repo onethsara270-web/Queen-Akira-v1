@@ -9,7 +9,7 @@
 <link rel="stylesheet" href="/shared.css">
 <script>const savedTheme = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-theme', savedTheme);</script>
 <script>
-// ── Auth guard: URL key → localStorage fallback ──
+// ── Auth guard (hard check) ──
 (function() {
   const urlKey = new URLSearchParams(window.location.search).get('key');
   if (urlKey) return;
@@ -17,7 +17,7 @@
   if (savedKey) {
     window.location.replace('/boost?key=' + encodeURIComponent(savedKey));
   } else {
-    window.location.href = '/login';
+    window.location.replace('/login');
   }
 })();
 </script>
@@ -138,6 +138,27 @@
 <div id="toast" class="toast"></div>
 
 <script>
+// ═══════════════════════════════════════════════════
+//  🔒 AUTH — extract key + fetch wrapper
+// ═══════════════════════════════════════════════════
+const AUTH_KEY = new URLSearchParams(window.location.search).get('key');
+if (!AUTH_KEY) {
+  window.location.replace('/login');
+}
+
+async function boostFetch(path, options = {}) {
+  const sep = path.includes('?') ? '&' : '?';
+  const url = path + sep + 'key=' + encodeURIComponent(AUTH_KEY);
+  const res = await fetch(url, options);
+  if (res.status === 401) {
+    localStorage.removeItem('qz_auth_key');
+    localStorage.removeItem('qz_auth_type');
+    window.location.replace('/login');
+    throw new Error('Session expired — please log in again');
+  }
+  return res;
+}
+
 let currentSessionId = null;
 
 function showToast(msg, type='success') {
@@ -149,7 +170,7 @@ function showToast(msg, type='success') {
 
 async function loadSessions() {
   try {
-    const res = await fetch('/api/boost/sessions');
+    const res = await boostFetch('/api/boost/sessions');
     const data = await res.json();
     const select = document.getElementById('sessionSelect');
     
@@ -238,7 +259,7 @@ async function submitBoost(type) {
       body.pollOption = document.getElementById('pollOption').value;
     }
 
-    const res = await fetch(url, {
+    const res = await boostFetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -279,7 +300,7 @@ async function loadBoosts() {
   const listEl = document.getElementById('boostList');
   
   try {
-    const res = await fetch(`/api/boost/list?requesterSessionId=${encodeURIComponent(currentSessionId)}`);
+    const res = await boostFetch(`/api/boost/list?requesterSessionId=${encodeURIComponent(currentSessionId)}`);
     const data = await res.json();
     
     if (!data.success || !data.boosts || data.boosts.length === 0) {
@@ -325,4 +346,4 @@ setInterval(loadSessions, 15000);
 <script src="/components.js"></script>
 <script>renderBottomNav('boost');</script>
 </body>
-  </html>
+                                                                                                                                                                                                                                                                                                                                                                                                                                                   </html>
