@@ -10,10 +10,10 @@
 <script>const savedTheme = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-theme', savedTheme);</script>
 <style>
 .wrapper{max-width:440px}
-.help-box{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:24px;margin-top:20px;text-align:left;box-shadow: var(--glass-shadow);}
+.help-box{background:var(--surface);backdrop-filter:var(--glass-blur);border:1.5px solid var(--border);border-radius:var(--radius);padding:24px;margin-top:20px;text-align:left;box-shadow:var(--glass-shadow)}
 .help-box h4{color:var(--accent);font-size:0.8em;margin-bottom:12px;letter-spacing:1.5px;text-transform:uppercase;font-weight:800;display:flex;align-items:center;gap:8px;font-family:var(--font-mono)}
 .help-box ul{list-style:none;padding:0;margin:0}
-.help-box li{color:var(--text-mid);font-size:0.85em;line-height:1.8;padding-left:24px;position:relative;margin-bottom:8px;font-family:var(--font-mono);font-weight:600;}
+.help-box li{color:var(--text-mid);font-size:0.85em;line-height:1.8;padding-left:24px;position:relative;margin-bottom:8px;font-family:var(--font-mono);font-weight:600}
 .help-box li::before{content:'▸';position:absolute;left:0;color:var(--accent);font-weight:800}
 .help-box li strong{color:var(--accent);background:var(--accent-glow);padding:2px 8px;border-radius:6px}
 </style>
@@ -36,10 +36,10 @@
       </div>
       <button type="submit" class="login-btn" id="btn">
         <span id="btnText">Enter Dashboard</span>
-        <div class="spinner" id="loader" style="display:none;margin:0"></div>
+        <div class="loading" id="loader" style="display:none"></div>
       </button>
     </form>
-    <div class="footer" style="margin-top:20px">✨ Powered by <span>FIXO DEV</span> 🖤</div>
+    <div style="margin-top:20px;text-align:center;font-size:0.8em;font-family:var(--font-mono);color:var(--text-dim)">✨ Powered by <span style="color:var(--accent);font-weight:800">FIXO DEV</span> 🖤</div>
   </div>
   
   <div class="divider">OR</div>
@@ -67,7 +67,7 @@
     </ul>
   </div>
 
-  <a href="https://www.npmjs.com/package/fixo-baileys" target="_blank" style="display: flex; align-items: center; justify-content: center; gap: 10px; margin-top: 16px; padding: 14px; background: rgba(204, 53, 53, 0.08); border: 1.5px solid #cc3535; border-radius: 12px; text-decoration: none; color: #cc3535; font-size: 0.9em; font-weight: 800; font-family: var(--font-mono);">
+  <a href="https://www.npmjs.com/package/fixo-baileys" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:10px;margin-top:16px;padding:14px;background:rgba(204,53,53,0.08);border:1.5px solid #cc3535;border-radius:12px;text-decoration:none;color:#cc3535;font-size:0.9em;font-weight:800;font-family:var(--font-mono)">
     <svg width="20" height="20" fill="currentColor" viewBox="0 0 24 24"><path d="M0 0v24h24v-24h-24zm19.2 19.2h-14.4v-14.4h14.4v14.4zm-9.6-11.52v6.72h2.88v-3.84h1.92v3.84h1.92v-6.72h-6.72z"/></svg>
     Powered by fixo-baileys
   </a>
@@ -102,35 +102,4 @@ function toggleTheme() { const root = document.documentElement; const next = roo
 
 <script src="/components.js"></script>
 <script>renderBottomNav('dashboard');</script>
-
-<div id="qz-loading" aria-label="Loading">
-  <div class="qz-loader-inner">
-    <div class="qz-loader-mark">QZ</div>
-    <div class="qz-loader-title">QUEEN ZARA MINI</div>
-    <div class="qz-loader-sub">PREPARING YOUR DASHBOARD</div>
-    <div class="qz-loader-line"></div>
-  </div>
-</div>
-<script>
-(function(){
-  var screen=document.getElementById('qz-loading');
-  function hide(){if(screen){screen.classList.add('qz-hidden');setTimeout(function(){if(screen.parentNode)screen.parentNode.removeChild(screen)},550)}}
-  if(document.readyState==='complete') setTimeout(hide,450);
-  else window.addEventListener('load',function(){setTimeout(hide,350)},{once:true});
-  setTimeout(hide,4500);
-  var nav=document.querySelector('.header .nav');
-  var header=document.querySelector('.header');
-  if(nav&&header){
-    var toggle=document.createElement('button');
-    toggle.type='button';toggle.className='qz-menu-toggle';toggle.setAttribute('aria-label','Toggle navigation');toggle.setAttribute('aria-expanded','false');toggle.innerHTML='☰';
-    toggle.addEventListener('click',function(){
-      var opened=nav.classList.toggle('qz-open');
-      toggle.setAttribute('aria-expanded',String(opened));toggle.innerHTML=opened?'✕':'☰';
-    });
-    var brand=header.querySelector('.brand');
-    if(brand&&brand.nextSibling)header.insertBefore(toggle,brand.nextSibling);else header.insertBefore(toggle,nav);
-  }
-})();
-</script>
-
 </body></html>
