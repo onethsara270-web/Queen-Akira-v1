@@ -1,5 +1,5 @@
 // plugins/pair.js
-// 🔗 Generate WhatsApp pairing code via chat command
+// 🔗 Pair code generator — works in DMs AND groups (DM only for privacy)
 const { cmd } = require('../command');
 
 function formatCode(code) {
@@ -13,18 +13,22 @@ cmd({
   pattern: "pair",
   alias: ["paircode", "connect"],
   use: ".pair <phone>",
-  desc: "Generate a pairing code to connect a bot for a phone number",
+  desc: "Generate pairing code (works in groups — code sent to DM)",
   category: "system",
   react: "🔗",
   filename: __filename
-}, async (conn, mek, m, { from, q, reply, senderNumber, isOwner }) => {
+}, async (conn, mek, m, { from, q, reply, sender, senderNumber, isOwner, isGroup }) => {
+  // ── Helpers ──
+  const inGroup = isGroup || from.endsWith('@g.us');
+  const targetDm = (ph) => String(ph).replace(/[^0-9]/g, '') + '@s.whatsapp.net';
+
   if (!q) {
     return reply(
       `🔗 *PAIR CODE GENERATOR*\n\n` +
       `*Usage:* .pair <phone number>\n` +
       `*Example:* .pair 947XXXXXXXX\n\n` +
-      `📌 The number must include the country code.\n` +
-      `⚠️ You can only pair your own number (unless you're the owner).`
+      `📌 Include country code (no + or spaces)\n` +
+      `📩 *Works in groups too* — pair code is DM'd to you (not shown in group).`
     );
   }
 
@@ -33,18 +37,41 @@ cmd({
     return reply(`❌ Invalid phone number.\nExample: 947XXXXXXXX`);
   }
 
-  // Permission: owner can pair anyone, user can only pair their own number
+  // Permission: owner = any number, user = own number only
   const canPair = isOwner || (senderNumber === phone);
   if (!canPair) {
-    return reply(
-      `❌ You can only pair your own number (*+${senderNumber}*).\n\n` +
-      `If you need to pair a different number, ask the bot owner.`
-    );
+    return reply(`❌ You can only pair your own number (*+${senderNumber}*).`);
   }
 
   const userMgr = require('../user-manager');
 
-  // Find or create user
+  // ── PairReply helper: sends full details to DM, ack in group ──
+  async function pairReply(text) {
+    if (inGroup) {
+      // In group: send full details to DM (privacy)
+      try {
+        await conn.sendMessage(targetDm(phone), { text });
+        if (isOwner) {
+          // Owner also sees full details in group
+          await reply(text);
+        } else {
+          await reply(
+            `📩 *Pair details sent to +${phone}*\n\n` +
+            `_Open WhatsApp → chat with this bot on +${phone} to see the code._`
+          );
+        }
+      } catch (e) {
+        // DM failed — fallback to group
+        console.log(`⚠️ [.pair] DM failed to ${phone}:`, e.message);
+        await reply(`⚠️ *Could not DM +${phone}*\n\n*Fallback — full details:*\n\n${text}`);
+      }
+    } else {
+      // DM: reply directly
+      await reply(text);
+    }
+  }
+
+  // ── Find or create user ──
   let user = userMgr.USERS[phone];
   if (!user) {
     user = {
@@ -63,33 +90,29 @@ cmd({
 
   const existing = userMgr.BOT_INSTANCES.get(user.sessionId);
 
-  // Already connected
+  // ── Already connected ──
   if (existing && existing.status === 'active') {
-    return reply(
+    return pairReply(
       `✅ *Bot already connected*\n\n` +
       `📱 Number: *+${phone}*\n` +
-      `🔑 Password: *${user.dashPassword}*\n\n` +
-      `_Bot is running. No need to pair again._`
+      `🔑 Password: *${user.dashPassword}*`
     );
   }
 
-  // Pairing code already exists (still valid)
+  // ── Existing pair code still valid ──
   if (existing && existing.status === 'pairing_code_ready' && existing.pairingCode) {
-    const formatted = formatCode(existing.pairingCode);
-    return reply(
+    return pairReply(
       `🔗 *PAIRING CODE (ACTIVE)*\n\n` +
       `📱 Number: *+${phone}*\n` +
-      `🔐 Code: *${formatted}*\n\n` +
+      `🔐 Code: *${formatCode(existing.pairingCode)}*\n\n` +
       `*Steps:*\n` +
-      `1. Open WhatsApp on +${phone}\n` +
-      `2. Settings → Linked Devices\n` +
-      `3. Link with phone number\n` +
-      `4. Enter the code above\n\n` +
-      `⏱️ Code expires in a few minutes.`
+      `1. WhatsApp → Settings\n` +
+      `2. Linked Devices → Link with phone number\n` +
+      `3. Enter code above`
     );
   }
 
-  // Stop existing instance if any
+  // ── Stop existing instance ──
   if (existing) {
     try { userMgr.stopUserBot(user.sessionId); } catch (e) {}
     await new Promise(r => setTimeout(r, 800));
@@ -97,21 +120,26 @@ cmd({
 
   userMgr.LAST_ERRORS.delete(user.sessionId);
 
-  await reply(
-    `🔗 *PAIRING STARTED*\n\n` +
-    `📱 Number: *+${phone}*\n` +
-    `⏳ Generating code... (this may take up to 60s)`
-  );
+  // ── Initial message (brief ack in group, full in DM) ──
+  if (inGroup && !isOwner) {
+    await reply(`🔗 Pairing +${phone}...\n📩 Code will be sent to your DM.`);
+  } else {
+    await reply(
+      `🔗 *PAIRING STARTED*\n\n` +
+      `📱 *+${phone}*\n` +
+      `⏳ Generating code... (up to 60s)`
+    );
+  }
 
-  // Start the bot with pairing code
+  // ── Start pairing ──
   try {
     userMgr.createUserBot(user.sessionId, phone, global.ownerConn, { usePairingCode: true })
       .catch(e => console.error(`❌ [.pair] createUserBot error:`, e.stack || e.message));
   } catch (e) {
-    return reply(`❌ Failed to start pairing: ${e.message}`);
+    return pairReply(`❌ Failed to start pairing: ${e.message}`);
   }
 
-  // Poll for pairing code (up to 90s)
+  // ── Poll for result (up to 90s) ──
   const maxWait = 90000;
   const pollInterval = 2000;
   let waited = 0;
@@ -124,26 +152,22 @@ cmd({
     if (!inst) continue;
 
     if (inst.status === 'pairing_code_ready' && inst.pairingCode) {
-      const formatted = formatCode(inst.pairingCode);
-      await reply(
+      return pairReply(
         `🔗 *PAIRING CODE READY* ✅\n\n` +
         `📱 Number: *+${phone}*\n` +
-        `🔐 Code: *${formatted}*\n\n` +
-        `*Steps to connect:*\n` +
-        `1. Open WhatsApp on +${phone}\n` +
-        `2. Go to *Settings → Linked Devices*\n` +
-        `3. Tap *Link a Device*\n` +
-        `4. Choose *Link with phone number*\n` +
-        `5. Enter the code above\n\n` +
-        `🔑 *Dashboard password:* \`${user.dashPassword}\`\n` +
-        `🌐 *Login:* ${global.BOT_DOMAIN || 'your-server'}/login\n\n` +
-        `⏱️ Code expires in ~5 minutes.`
+        `🔐 Code: *${formatCode(inst.pairingCode)}*\n\n` +
+        `*Steps:*\n` +
+        `1. WhatsApp → Settings\n` +
+        `2. Linked Devices → Link a Device\n` +
+        `3. Link with phone number\n` +
+        `4. Enter: *${formatCode(inst.pairingCode)}*\n\n` +
+        `🔑 *Password:* \`${user.dashPassword}\`\n` +
+        `🌐 *Login:* ${global.BOT_DOMAIN || 'server'}/login`
       );
-      return;
     }
 
     if (inst.status === 'active') {
-      return reply(
+      return pairReply(
         `✅ *Connected successfully!*\n\n` +
         `📱 Number: *+${phone}*\n` +
         `🔑 Password: *${user.dashPassword}*`
@@ -151,51 +175,48 @@ cmd({
     }
 
     if (inst.pairingCodeError && (inst.status === 'offline' || inst.status === 'stopped')) {
-      return reply(
+      return pairReply(
         `❌ *Pairing failed*\n\n` +
-        `📱 Number: +${phone}\n` +
+        `📱 +${phone}\n` +
         `⚠️ ${inst.pairingCodeError}\n\n` +
         `Try again: *.pair ${phone}*`
       );
     }
   }
 
-  // Timeout — check one more time
+  // ── Timeout — check once more ──
   const finalInst = userMgr.BOT_INSTANCES.get(user.sessionId);
   if (finalInst && finalInst.pairingCode) {
-    const formatted = formatCode(finalInst.pairingCode);
-    return reply(
+    return pairReply(
       `🔗 *PAIRING CODE (late)*\n\n` +
-      `📱 Number: *+${phone}*\n` +
-      `🔐 Code: *${formatted}*\n\n` +
-      `Enter in WhatsApp: Settings → Linked Devices → Link with phone number`
+      `📱 *+${phone}*\n` +
+      `🔐 *${formatCode(finalInst.pairingCode)}*\n\n` +
+      `Settings → Linked Devices → Link with phone number`
     );
   }
 
-  return reply(
+  return pairReply(
     `⏱️ *Timeout*\n\n` +
     `Code generation took too long.\n\n` +
     `Try:\n` +
-    `1. Wait 30s, then *.pairstatus ${phone}*\n` +
-    `2. Or retry: *.pair ${phone}*\n\n` +
-    `WhatsApp servers may be busy — try again in a minute.`
+    `• *.pairstatus ${phone}*\n` +
+    `• *.pair ${phone}* (retry)`
   );
 });
 
 // ═══════════════════════════════════════════════════
-//  🔍 STATUS CHECK
+//  🔍 STATUS CHECK (also group-friendly)
 // ═══════════════════════════════════════════════════
 cmd({
   pattern: "pairstatus",
   alias: ["pstatus", "pairinfo"],
   use: ".pairstatus <phone>",
-  desc: "Check current pairing status for a phone number",
+  desc: "Check current pairing status (DM'd in groups)",
   category: "system",
   react: "🔍",
   filename: __filename
-}, async (conn, mek, m, { from, q, reply, senderNumber, isOwner }) => {
+}, async (conn, mek, m, { from, q, reply, senderNumber, isOwner, isGroup }) => {
   if (!q) return reply(`Usage: .pairstatus <phone>`);
-
   const phone = String(q).replace(/[^0-9]/g, '');
   if (phone.length < 10) return reply(`❌ Invalid phone number`);
 
@@ -208,36 +229,43 @@ cmd({
   if (!user) return reply(`❌ No user found for +${phone}`);
 
   const inst = userMgr.BOT_INSTANCES.get(user.sessionId);
+  const inGroup = isGroup || from.endsWith('@g.us');
+  const targetDm = phone + '@s.whatsapp.net';
+
+  let text;
   if (!inst) {
-    return reply(
-      `📊 *Status for +${phone}*\n\n` +
-      `State: ⚪ Not running\n` +
+    text =
+      `📊 *Status: +${phone}*\n\n` +
+      `⚪ Not running\n` +
       `🔑 Password: *${user.dashPassword}*\n\n` +
-      `Use *.pair ${phone}* to start pairing.`
-    );
+      `Use *.pair ${phone}* to start.`;
+  } else {
+    const statusEmoji = {
+      active: '🟢',
+      pairing_code_ready: '🟡',
+      connecting: '🔵',
+      offline: '🔴',
+      stopped: '⚫',
+      qr_ready: '🟣'
+    }[inst.status] || '❔';
+
+    text =
+      `📊 *Status: +${phone}*\n\n` +
+      `State: ${statusEmoji} *${inst.status}*\n` +
+      `🔑 Password: *${user.dashPassword}*\n`;
+    if (inst.pairingCode) text += `🔐 Code: *${formatCode(inst.pairingCode)}*\n`;
+    if (inst.pairingCodeError) text += `⚠️ ${inst.pairingCodeError}\n`;
+    if (inst.connectedAt) text += `✅ Connected: ${new Date(inst.connectedAt).toLocaleString()}\n`;
   }
 
-  const statusEmoji = {
-    active: '🟢',
-    pairing_code_ready: '🟡',
-    connecting: '🔵',
-    offline: '🔴',
-    stopped: '⚫',
-    qr_ready: '🟣'
-  }[inst.status] || '❔';
-
-  let text = `📊 *Status for +${phone}*\n\n`;
-  text += `State: ${statusEmoji} *${inst.status}*\n`;
-  text += `🔑 Password: *${user.dashPassword}*\n`;
-
-  if (inst.pairingCode) {
-    text += `🔐 Pairing Code: *${formatCode(inst.pairingCode)}*\n`;
-  }
-  if (inst.pairingCodeError) {
-    text += `⚠️ Error: ${inst.pairingCodeError}\n`;
-  }
-  if (inst.connectedAt) {
-    text += `✅ Connected: ${new Date(inst.connectedAt).toLocaleString()}\n`;
+  // Group + non-owner: send full status to DM
+  if (inGroup && !isOwner) {
+    try {
+      await conn.sendMessage(targetDm, { text });
+      return reply(`📩 *Status sent to +${phone} DM*`);
+    } catch (e) {
+      return reply(`⚠️ Could not DM +${phone}\n\n*Fallback:*\n\n${text}`);
+    }
   }
 
   return reply(text);
