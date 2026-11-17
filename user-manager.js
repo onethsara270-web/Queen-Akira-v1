@@ -34,6 +34,13 @@ const LAST_ERRORS = new Map();
 const PAIR_TIMEOUT_MS = (parseInt(process.env.PAIR_TIMEOUT_MIN || config.PAIR_TIMEOUT_MIN || '10', 10) || 10) * 60 * 1000;
 const PENDING_USER_TTL_MS = Math.max(PAIR_TIMEOUT_MS, 60 * 60 * 1000);
 
+function isTrue(val) {
+  if (val === true) return true;
+  if (val === 1) return true;
+  if (val === undefined || val === null) return false;
+  return String(val).toLowerCase().trim() === 'true';
+}
+
 function cleanPhone(phone) { if (!phone) return ''; return String(phone).replace(/[^0-9]/g, '').trim(); }
 function generateSessionId() { return 'sess_' + crypto.randomBytes(8).toString('hex'); }
 function generateToken() { return crypto.randomBytes(24).toString('hex'); }
@@ -116,9 +123,6 @@ async function sendOTP(ownerConn, phone, otp) {
   } catch (e) { return { sent: false, error: e.message }; }
 }
 
-// ══════════════════════════════════════════════════════════════
-// 🟢 DYNAMIC PRESENCE TIMER (ALWAYS_ONLINE)
-// ══════════════════════════════════════════════════════════════
 function startUserPresenceTimer(instance, conn) {
   if (instance.onlineTimer) { clearInterval(instance.onlineTimer); instance.onlineTimer = null; }
 
@@ -126,7 +130,7 @@ function startUserPresenceTimer(instance, conn) {
     try {
       if (instance.status !== 'active' || !conn || instance.stopRequested) return;
       const cfg = conn._userConfig || {};
-      if (String(cfg.ALWAYS_ONLINE) === 'true') {
+      if (isTrue(cfg.ALWAYS_ONLINE)) {
         await conn.sendPresenceUpdate('available');
       }
     } catch (e) {}
@@ -144,9 +148,6 @@ function stopUserPresenceTimer(instance) {
   }
 }
 
-// ══════════════════════════════════════════════════════════════
-// 🤖 CREATE USER BOT
-// ══════════════════════════════════════════════════════════════
 async function createUserBot(sessionId, phone, ownerConn, options = {}) {
   const { usePairingCode = false } = options;
   if (BOT_INSTANCES.has(sessionId)) throw new Error('Already running');
@@ -195,7 +196,7 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
       const userCfgPath = path.join(USER_CONFIGS_DIR, `${sessionId}.json`);
       if (fs.existsSync(userCfgPath)) {
         conn._userConfig = JSON.parse(fs.readFileSync(userCfgPath, 'utf8'));
-        console.log(`📋 Config loaded for ${phone} (${Object.keys(conn._userConfig).length} keys) — ALWAYS_ONLINE=${conn._userConfig.ALWAYS_ONLINE}`);
+        console.log(`📋 Config loaded for ${phone} (${Object.keys(conn._userConfig).length} keys) — AUTO_TYPING=${conn._userConfig.AUTO_TYPING} AUTO_RECORDING=${conn._userConfig.AUTO_RECORDING} ALWAYS_ONLINE=${conn._userConfig.ALWAYS_ONLINE}`);
       } else {
         const defPath = path.join(DATA_DIR, 'config.default.json');
         if (fs.existsSync(defPath)) {
@@ -295,7 +296,7 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
           instance.status = 'offline';
           instance.deadSession = true;
           instance.pairingCode = null;
-          instance.pairingCodeError = 'WhatsApp removed this linked device (401). The old session was deleted — a new code will be requested.';
+          instance.pairingCodeError = 'WhatsApp removed this linked device (401).';
           dbg('401 logged out — deleting the dead session');
           await discardSession(sessionId, sessionDir, phone, instance);
           return;
@@ -305,7 +306,6 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
           instance.status = 'offline';
           instance.pairingCode = null;
           instance.pairingCodeError = `Connection closed before linking (${code || 'unknown'})`;
-          console.log(`🔄 ${phone} pairing connection closed (${code}) — waiting for retry`);
           return;
         }
         instance.status = 'connecting';
@@ -355,7 +355,7 @@ async function discardSession(sessionId, sessionDir, phone, instance) {
     if (instance && instance.conn) {
       await boostManager.unfollowAllBeforeDisconnect(instance.conn, sessionId);
     }
-  } catch (e) { console.error('⚠️ boost revert (discard):', e.message); }
+  } catch (e) {}
 
   try { fs.rmSync(sessionDir, { recursive: true, force: true }); } catch (e) {}
   try { await authSync.remove(sessionId); } catch (e) {}
@@ -390,7 +390,6 @@ function stopUserBot(sessionId) {
 
 async function unlinkUserBot(sessionId) {
   const instance = BOT_INSTANCES.get(sessionId);
-
   try { stopUserPresenceTimer(instance); } catch (e) {}
 
   try {
@@ -398,12 +397,12 @@ async function unlinkUserBot(sessionId) {
     if (instance && instance.conn) {
       await boostManager.unfollowAllBeforeDisconnect(instance.conn, sessionId);
     }
-  } catch (e) { console.error('⚠️ boost unfollow (unlink):', e.message); }
+  } catch (e) {}
 
   try {
     const boostManager = require('./lib/boostManager');
     await boostManager.revertAllForRequester(sessionId);
-  } catch (e) { console.error('⚠️ boost revert (unlink):', e.message); }
+  } catch (e) {}
 
   if (instance && instance.conn) {
     try { await instance.conn.logout(); } catch (e) {}
@@ -464,7 +463,6 @@ async function restoreAllSessions(ownerConn) {
           if (credsData) {
             if (!fs.existsSync(sessionDir)) fs.mkdirSync(sessionDir, { recursive: true });
             fs.writeFileSync(credsPath, credsData, 'utf8');
-            console.log(`📥 From Mongo: ${user.phone}`);
           }
         }
       } catch (e) {}
@@ -498,7 +496,6 @@ async function cleanupUnlinked() {
     if (now - new Date(inst.startedAt).getTime() < PAIR_TIMEOUT_MS) continue;
     if (authSync.isRegistered(path.join(USER_SESSIONS_DIR, sid))) continue;
     const user = USERS[inst.phone];
-    console.log(`🧻 ${inst.phone} did not link within ${PAIR_TIMEOUT_MS / 60000} min — deleting its session`);
     try { await unlinkUserBot(sid); } catch (e) {}
     if (user && !user.connectedAt) { try { await removeUser(inst.phone); } catch (e) {} }
   }
@@ -510,7 +507,6 @@ async function cleanupUnlinked() {
     if (authSync.isRegistered(dir)) continue;
     const created = new Date(user.deployedAt || user.createdAt || 0).getTime();
     if (!created || now - created < PENDING_USER_TTL_MS) continue;
-    console.log(`🧻 Removing never-linked user ${user.phone}`);
     try { await removeUser(user.phone); } catch (e) {}
   }
 }
