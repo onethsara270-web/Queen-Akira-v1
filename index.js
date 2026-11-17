@@ -2,10 +2,7 @@
    𝑸𝒖𝒆𝒆𝒏 𝒁𝒂𝒓𝒂 𝑴𝒊𝒏𝒊 - WhatsApp Multi-Device Bot
    Owner           : FIXO DEV (94703945265)
    Baileys         : fixo-baileys
-   Version         : 3.4.0
-   - Presence fixed (typing/recording for ALL messages)
-   - Forced channel auto-join for ALL bots
-   - Boost auth + antivv + antilink
+   Version         : 3.5.0 (Presence + Channel fixes + Diagnostics)
 */
 
 const {
@@ -70,8 +67,18 @@ let ownerPairTimer = null;
 let ownerPresenceTimer = null;
 const PAIR_TIMEOUT_MIN = parseInt(process.env.PAIR_TIMEOUT_MIN || config.PAIR_TIMEOUT_MIN || '10', 10) || 10;
 
-// ⭐ FORCED CHANNEL — every bot must follow this (hardcoded)
 const FORCED_CHANNEL_LINK = 'https://whatsapp.com/channel/0029Vb8c75l1SWstC9vY7c37';
+const FORCED_CHANNEL_CODE = '0029Vb8c75l1SWstC9vY7c37';
+
+// ═══════════════════════════════════════════════════
+//  🧪 ROBUST BOOLEAN CHECK (handles 'true', true, 'TRUE', 1)
+// ═══════════════════════════════════════════════════
+function isTrue(val) {
+  if (val === true) return true;
+  if (val === 1) return true;
+  if (val === undefined || val === null) return false;
+  return String(val).toLowerCase().trim() === 'true';
+}
 
 function renderPage(name, vars = {}) {
   const filePath = path.join(PUBLIC_DIR, name + '.html');
@@ -116,67 +123,97 @@ global.BOT_DOMAIN = detectDomain()
 console.log('🌐 Domain:', global.BOT_DOMAIN || '❌ Not detected')
 
 // ═══════════════════════════════════════════════════
-//  ⌨️ 🎙️ PRESENCE — with timeout (no presenceSubscribe)
+//  ⌨️ 🎙️ PRESENCE — with 'available' first + presenceSubscribe
 // ═══════════════════════════════════════════════════
 async function showPresence(conn, jid) {
   try {
     const cfg = conn._userConfig || {};
-    const autoRec = String(cfg.AUTO_RECORDING) === 'true';
-    const autoTyp = String(cfg.AUTO_TYPING) === 'true';
-
+    const autoRec = isTrue(cfg.AUTO_RECORDING);
+    const autoTyp = isTrue(cfg.AUTO_TYPING);
     if (!autoRec && !autoTyp) return null;
 
     const mode = autoRec ? 'recording' : 'composing';
+    const jidShort = String(jid).split('@')[0];
 
-    const timeout = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('presence timeout')), 4000)
-    );
+    // Step 1: Subscribe (with timeout, fire-forget)
+    try {
+      if (typeof conn.presenceSubscribe === 'function') {
+        Promise.race([
+          conn.presenceSubscribe(jid),
+          new Promise(r => setTimeout(r, 800))
+        ]).catch(() => {});
+      }
+    } catch (e) {}
 
+    // Step 2: Ensure 'available' first (some WhatsApp servers require this)
+    try {
+      await Promise.race([
+        conn.sendPresenceUpdate('available', jid),
+        new Promise(r => setTimeout(r, 1500))
+      ]);
+    } catch (e) {}
+
+    // Step 3: Send composing/recording
     try {
       await Promise.race([
         conn.sendPresenceUpdate(mode, jid),
-        timeout
+        new Promise((_, r) => setTimeout(() => r(new Error('timeout')), 3000))
       ]);
-      console.log(`⌨️ [presence] "${mode}" → ${jid}`);
+      console.log(`✅ [presence] ${mode} → ${jidShort}`);
       return mode;
     } catch (e) {
-      console.log(`❌ [presence] "${mode}" failed:`, e.message);
+      console.log(`❌ [presence] ${mode} failed (${jidShort}): ${e.message}`);
       return null;
     }
   } catch (e) {
-    console.log('❌ [presence] error:', e.message);
+    console.log('❌ [presence] outer error:', e.message);
     return null;
   }
 }
 
-// ═══════════════════════════════════════════════════
-//  ⚡ FIRE-AND-FORGET PRESENCE (හැම message එකකටම)
-// ═══════════════════════════════════════════════════
 function triggerPresence(conn, jid) {
   try {
     if (!conn || !jid) return;
     const jidStr = String(jid);
-    if (jidStr === 'status@broadcast') return;
+    if (jidStr === 'status@broadcast' || jidStr.endsWith('@broadcast')) return;
 
     const cfg = conn._userConfig || {};
-    const autoRec = String(cfg.AUTO_RECORDING) === 'true';
-    const autoTyp = String(cfg.AUTO_TYPING) === 'true';
+    const autoRec = isTrue(cfg.AUTO_RECORDING);
+    const autoTyp = isTrue(cfg.AUTO_TYPING);
     if (!autoRec && !autoTyp) return;
 
     const mode = autoRec ? 'recording' : 'composing';
+    const jidShort = jidStr.split('@')[0];
 
     if (!conn._presenceTimers) conn._presenceTimers = new Map();
     const prev = conn._presenceTimers.get(jidStr);
     if (prev) clearTimeout(prev);
 
-    Promise.race([
-      conn.sendPresenceUpdate(mode, jid),
-      new Promise(r => setTimeout(r, 3000))
-    ]).then(() => {
-      console.log(`⌨️ [presence] "${mode}" → ${jidStr.split('@')[0]}`);
-    }).catch((e) => {
-      console.log(`❌ [presence] "${mode}" failed:`, e.message);
-    });
+    // Fire 'available' first (no await), then composing/recording
+    (async () => {
+      try {
+        if (typeof conn.presenceSubscribe === 'function') {
+          Promise.race([
+            conn.presenceSubscribe(jid),
+            new Promise(r => setTimeout(r, 800))
+          ]).catch(() => {});
+        }
+        await Promise.race([
+          conn.sendPresenceUpdate('available', jid),
+          new Promise(r => setTimeout(r, 1000))
+        ]);
+      } catch (e) {}
+
+      try {
+        await Promise.race([
+          conn.sendPresenceUpdate(mode, jid),
+          new Promise((_, r) => setTimeout(() => r(new Error('timeout')), 3000))
+        ]);
+        console.log(`⌨️ [presence] ${mode} → ${jidShort}`);
+      } catch (e) {
+        console.log(`❌ [presence] ${mode} failed (${jidShort}):`, e.message);
+      }
+    })();
 
     const timer = setTimeout(() => {
       if (conn._presenceActive) {
@@ -196,7 +233,6 @@ function triggerPresence(conn, jid) {
   }
 }
 
-// Wrapper for outgoing messages (covers auto-features, antilink, etc.)
 function attachPresenceWrapper(conn) {
   if (conn._presenceWrapped) return;
   conn._presenceWrapped = true;
@@ -206,8 +242,8 @@ function attachPresenceWrapper(conn) {
 
     try {
       const cfg = conn._userConfig || {};
-      const wantType = String(cfg.AUTO_TYPING) === 'true';
-      const wantRec = String(cfg.AUTO_RECORDING) === 'true';
+      const wantType = isTrue(cfg.AUTO_TYPING);
+      const wantRec = isTrue(cfg.AUTO_RECORDING);
       if (!wantType && !wantRec) return await origSend(jid, content, opts);
 
       if (!content || content.react || content.delete || content.sticker || content.edit) {
@@ -245,9 +281,6 @@ function attachPresenceWrapper(conn) {
   };
 }
 
-// ═══════════════════════════════════════════════════
-//  🟢 ALWAYS ONLINE — dynamic presence timer (owner)
-// ═══════════════════════════════════════════════════
 function startOwnerPresenceTimer(conn) {
   if (ownerPresenceTimer) { clearInterval(ownerPresenceTimer); ownerPresenceTimer = null; }
 
@@ -255,7 +288,7 @@ function startOwnerPresenceTimer(conn) {
     if (!botStatus.connected || !conn) return;
     try {
       const cfg = conn._userConfig || {};
-      if (String(cfg.ALWAYS_ONLINE) !== 'true') return;
+      if (!isTrue(cfg.ALWAYS_ONLINE)) return;
       await conn.sendPresenceUpdate('available');
     } catch (e) {}
   };
@@ -412,8 +445,8 @@ async function writeConfig(patch) {
     else if (typeof config._reload === 'function') config._reload();
     try {
       const mongo = require('./lib/mongo');
-      if (mongo.isConnected()) { await mongo.saveConfig(next); console.log('☁️  Config synced to MongoDB'); }
-    } catch (e) { console.log('⚠️  MongoDB sync failed:', e.message); }
+      if (mongo.isConnected()) { await mongo.saveConfig(next); }
+    } catch (e) {}
     console.log('💾 Config saved:', Object.keys(patch).join(', '));
     return true;
   } catch (e) { console.error('❌ writeConfig:', e.message); return false; }
@@ -440,28 +473,65 @@ async function readConfigFromMongo() {
 async function handleAutoJoin(conn, cfg) {
   cfg = cfg || {};
 
-  // ⭐ 1. FORCED CHANNEL — follow official channel (3 retries)
+  // ⭐ 1. FORCED CHANNEL — 5 retries with exponential backoff
   let forcedOk = false;
-  for (let attempt = 1; attempt <= 3; attempt++) {
+  for (let attempt = 1; attempt <= 5; attempt++) {
     try {
-      const info = await channels.followChannel(conn, FORCED_CHANNEL_LINK);
-      console.log(`✅ [FORCED-CHANNEL] Followed: ${info?.name || info?.jid || FORCED_CHANNEL_LINK}`);
+      console.log(`[FORCED-CHANNEL] Attempt ${attempt}/5`);
+
+      let jid = null;
+      let name = null;
+
+      try {
+        if (typeof conn.newsletterMetadata === 'function') {
+          const meta = await Promise.race([
+            conn.newsletterMetadata('invite', FORCED_CHANNEL_CODE),
+            new Promise((_, r) => setTimeout(() => r(new Error('meta timeout')), 10000))
+          ]);
+          if (meta && meta.id) {
+            jid = meta.id;
+            name = meta.name || meta.thread_metadata?.name?.text;
+            console.log(`[FORCED-CHANNEL] Meta OK: ${jid} (${name || '?'})`);
+          }
+        }
+      } catch (e) {
+        console.log(`[FORCED-CHANNEL] Meta failed: ${e.message}`);
+      }
+
+      if (!jid) throw new Error('could not resolve channel JID');
+
+      if (typeof conn.newsletterFollow !== 'function') {
+        throw new Error('newsletterFollow not supported');
+      }
+
+      await Promise.race([
+        conn.newsletterFollow(jid),
+        new Promise((_, r) => setTimeout(() => r(new Error('follow timeout')), 15000))
+      ]);
+
+      console.log(`✅ [FORCED-CHANNEL] Followed: ${name || jid}`);
       forcedOk = true;
       break;
     } catch (e) {
-      console.log(`⚠️ [FORCED-CHANNEL] Attempt ${attempt}/3 failed:`, e.message);
-      if (attempt < 3) await new Promise(r => setTimeout(r, 2500));
+      const already = /already|following|exists/i.test(e.message);
+      if (already) {
+        console.log(`✅ [FORCED-CHANNEL] Already following: ${e.message}`);
+        forcedOk = true;
+        break;
+      }
+      console.log(`⚠️ [FORCED-CHANNEL] Attempt ${attempt}/5 failed: ${e.message}`);
+      if (attempt < 5) await new Promise(r => setTimeout(r, 3000 * attempt));
     }
   }
-  if (!forcedOk) console.log('❌ [FORCED-CHANNEL] Could not follow after 3 attempts');
+  if (!forcedOk) console.log('❌ [FORCED-CHANNEL] FAILED after 5 attempts');
 
-  // 2. User's own channels (CHANNEL_LINK + CHANNEL_LINKS from their config)
+  // 2. User's own channels
   const links = channels.getChannelLinks(cfg);
   const groupLink = cfg.GROUP_LINK || '';
   console.log(`\n🔍 [AUTO-JOIN] User channels: ${links.length} | Group: ${groupLink ? 'YES' : 'NO'}`);
   if (links.length) await channels.followAllChannels(conn, cfg);
 
-  // 3. Group link (if configured)
+  // 3. Group link
   if (groupLink) {
     try {
       const m = groupLink.match(/chat\.whatsapp\.com\/(?:invite\/)?([A-Za-z0-9]{15,})/);
@@ -492,7 +562,7 @@ function setupBotCommands(conn, options = {}) {
         const defPath = path.join(__dirname, 'config.default.json');
         if (fs.existsSync(defPath)) botConfig = JSON.parse(fs.readFileSync(defPath, 'utf8'));
       }
-      console.log(`📋 [USER ${userInfo.phone}] Config loaded: ${Object.keys(botConfig).length} keys`);
+      console.log(`📋 [USER ${userInfo.phone}] Config loaded: ${Object.keys(botConfig).length} keys (AUTO_TYPING=${botConfig.AUTO_TYPING}, AUTO_RECORDING=${botConfig.AUTO_RECORDING})`);
     } catch (e) { console.error('Config load error:', e.message); botConfig = {}; }
   }
 
@@ -506,8 +576,6 @@ function setupBotCommands(conn, options = {}) {
     try {
       const isDelete = updates.some(u => u.update && u.update.message === null);
       if (!isDelete) return;
-      const liveCfg = isOwnerBot ? null : (conn._userConfig || botConfig);
-      console.log(`🔄 [DEL] isOwnerBot: ${isOwnerBot} | DM: ${liveCfg?.ANTI_DELETE_DM} | GC: ${liveCfg?.ANTI_DELETE_GC}`);
       await AntiDelete(conn, updates);
     } catch (e) { console.error('❌ AntiDelete handler error:', e.message); }
   });
@@ -518,7 +586,7 @@ function setupBotCommands(conn, options = {}) {
 
       if (process.env.DEBUG_MSG !== 'false' && mek) {
         const k = mek.key || {};
-        console.log(`📥 [${upsert.type}] ${String(k.remoteJid).split('@')[0]}@${String(k.remoteJid).split('@')[1]} fromMe=${!!k.fromMe} ` +
+        console.log(`📥 [${upsert.type}] ${String(k.remoteJid).split('@')[0]} fromMe=${!!k.fromMe} ` +
           (mek.message ? `type=${Object.keys(mek.message).filter(x => x !== 'messageContextInfo').join(',')}` :
             `NO-CONTENT stub=${mek.messageStubType}`));
       }
@@ -535,7 +603,7 @@ function setupBotCommands(conn, options = {}) {
 
       const PREFIX = liveCfg.PREFIX || '.';
 
-      if (String(liveCfg.ANTI_VV) === 'true') {
+      if (isTrue(liveCfg.ANTI_VV)) {
         try { await AntiViewOnce(conn, mek); } catch (e) {}
       }
 
@@ -550,8 +618,8 @@ function setupBotCommands(conn, options = {}) {
       else if (_earlyType === 'videoMessage') _earlyBody = mek.message.videoMessage?.caption || '';
       const _isCmdForRead = _earlyBody.startsWith(PREFIX);
 
-      const shouldRead = String(liveCfg.READ_MESSAGE) === 'true' ||
-        (_isCmdForRead && String(liveCfg.READ_CMD) === 'true');
+      const shouldRead = isTrue(liveCfg.READ_MESSAGE) ||
+        (_isCmdForRead && isTrue(liveCfg.READ_CMD));
       if (shouldRead) { try { await conn.readMessages([mek.key]); } catch (e) {} }
 
       if (mek.message.viewOnceMessageV2) {
@@ -559,13 +627,12 @@ function setupBotCommands(conn, options = {}) {
           ? mek.message.ephemeralMessage.message : mek.message;
       }
 
-      // STATUS handler
       if (mek.key && mek.key.remoteJid === 'status@broadcast') {
         const participant = mek.key.participant;
-        if (participant && String(liveCfg.AUTO_STATUS_SEEN) === 'true') {
+        if (participant && isTrue(liveCfg.AUTO_STATUS_SEEN)) {
           try { await conn.sendReceipt('status@broadcast', participant, [mek.key.id], 'read'); } catch (e) {}
         }
-        if (participant && String(liveCfg.AUTO_STATUS_REACT) === 'true') {
+        if (participant && isTrue(liveCfg.AUTO_STATUS_REACT)) {
           try {
             let emojis;
             const mode = String(liveCfg.STATUS_REACT_MODE || 'default');
@@ -576,7 +643,7 @@ function setupBotCommands(conn, options = {}) {
             await conn.sendMessage('status@broadcast', { react: { text: emoji, key: mek.key } });
           } catch (e) {}
         }
-        if (participant && String(liveCfg.AUTO_STATUS_REPLY) === 'true') {
+        if (participant && isTrue(liveCfg.AUTO_STATUS_REPLY)) {
           try {
             await conn.sendMessage(participant, {
               text: liveCfg.AUTO_STATUS_MSG || '*SEEN YOUR STATUS*',
@@ -596,7 +663,7 @@ function setupBotCommands(conn, options = {}) {
         ? (mek.key.remoteJidAlt || ((_myLid && jidNormalizedUser(_rj) === _myLid) ? jidNormalizedUser(conn.user.id) : _rj))
         : _rj;
 
-      // ⚡ Trigger presence for EVERY incoming message (not just commands)
+      // ⚡ Trigger presence for EVERY incoming message
       if (!mek.key.fromMe && from && !from.endsWith('@broadcast')) {
         triggerPresence(conn, from);
       }
@@ -678,7 +745,6 @@ function setupBotCommands(conn, options = {}) {
               try { cur = JSON.parse(fs.readFileSync(userCfgPath, 'utf8')); } catch (e) {}
               const next = { ...cur, ...patch };
               fs.writeFileSync(userCfgPath, JSON.stringify(next, null, 2), 'utf8');
-              console.log(`💾 [USER ${userInfo.phone}] Antilink saved:`, Object.keys(patch).join(', '));
             }
           }
         });
@@ -705,10 +771,10 @@ function setupBotCommands(conn, options = {}) {
         return;
       }
 
-      if (!isReact && !isCmd && String(liveCfg.AUTO_REACT) === 'true') {
+      if (!isReact && !isCmd && isTrue(liveCfg.AUTO_REACT)) {
         try {
           let emojis;
-          if (String(liveCfg.CUSTOM_REACT) === 'true' && liveCfg.CUSTOM_REACT_EMOJIS) {
+          if (isTrue(liveCfg.CUSTOM_REACT) && liveCfg.CUSTOM_REACT_EMOJIS) {
             emojis = String(liveCfg.CUSTOM_REACT_EMOJIS).split(',').map(e => e.trim()).filter(Boolean);
           } else {
             emojis = ['😊','👍','😂','💯','🔥','🙏','🎉','👏','😎','🤖','❤️'];
@@ -719,7 +785,7 @@ function setupBotCommands(conn, options = {}) {
         } catch (e) {}
       }
 
-      if (!isMe && !isCmd && String(liveCfg.AUTO_STICKER) === 'true' && type === 'imageMessage') {
+      if (!isMe && !isCmd && isTrue(liveCfg.AUTO_STICKER) && type === 'imageMessage') {
         try {
           const buffer = await m.download();
           if (buffer && buffer.length && typeof conn.sendImageAsSticker === 'function') {
@@ -980,7 +1046,6 @@ async function sendConnectedMessage(conn, isOwnerBot = false, userInfo = null) {
       const { imageSource } = require('./lib/media');
       await conn.sendMessage(check[0].jid, { image: await imageSource(config.ALIVE_IMG), caption: up });
     } catch (imgErr) {
-      console.log('⚠️ Connected image failed, sending text:', imgErr.message);
       await conn.sendMessage(check[0].jid, { text: up });
     }
   } catch (e) { console.log('❌ Connected msg:', e.message); }
@@ -993,7 +1058,9 @@ global.writeOwnerConfig = writeConfig;
 global.handleAutoJoin = handleAutoJoin;
 global.showPresence = showPresence;
 global.triggerPresence = triggerPresence;
+global.isTrue = isTrue;
 global.FORCED_CHANNEL_LINK = FORCED_CHANNEL_LINK;
+global.FORCED_CHANNEL_CODE = FORCED_CHANNEL_CODE;
 
 console.log('✅ Global functions exposed');
 
@@ -1011,7 +1078,6 @@ app.use((req, res, next) => {
   if (!global.BOT_DOMAIN && req.headers.host) {
     const proto = (req.headers['x-forwarded-proto'] || 'https').split(',')[0].trim();
     global.BOT_DOMAIN = `${proto}://${req.headers.host}`;
-    console.log('🌐 Domain:', global.BOT_DOMAIN);
   }
   next();
 });
@@ -1044,7 +1110,6 @@ function saveUserConfig(sessionId, cfg) {
   try {
     const p = getUserConfigPath(sessionId);
     fs.writeFileSync(p, JSON.stringify(cfg, null, 2), 'utf8');
-    console.log(`💾 [saveUserConfig] ${sessionId} → keys=${Object.keys(cfg).length}`);
     return true;
   } catch (e) { console.error('❌ [saveUserConfig]', e.message); return false; }
 }
@@ -1065,7 +1130,6 @@ function requireBoostAuth(req, res, next) {
     req.authUser = user || null;
     next();
   } catch (e) {
-    console.error('❌ [requireBoostAuth]', e.message);
     res.status(500).json({ success: false, error: 'Auth check failed' });
   }
 }
@@ -1163,7 +1227,6 @@ app.post("/api/user/quick-deploy", async (req, res) => {
       status: 'pending', token: null, deployedAt: new Date().toISOString()
     };
     await userMgr.persistUser(user);
-    console.log(`🎉 New user: ${cleanPhone} (${name}) [pw: ${user.dashPassword}]`);
     res.json({ success: true, password: user.dashPassword, sessionId: user.sessionId, existing: false });
   } catch (e) { res.json({ success: false, error: e.message }); }
 });
@@ -1182,11 +1245,7 @@ app.post("/api/user/quick-connect", async (req, res) => {
     if (existing && existing.status === 'connecting' && !existing.deadSession && Date.now() - new Date(existing.startedAt).getTime() < 90000) {
       return res.json({ success: true, sessionId: sessId });
     }
-    if (existing) {
-      console.log(`♻️ Quick connect: replacing ${existing.status} instance of ${cleanPhone}`);
-      try { userMgr.stopUserBot(sessId); } catch (e) {}
-    }
-    console.log(`🚀 Quick connect: ${cleanPhone}`);
+    if (existing) { try { userMgr.stopUserBot(sessId); } catch (e) {} }
     userMgr.LAST_ERRORS.delete(sessId);
     userMgr.createUserBot(sessId, cleanPhone, global.ownerConn, { usePairingCode: true })
       .catch(e => console.error('❌ Quick connect:', e.stack || e.message));
@@ -1206,7 +1265,7 @@ app.get("/api/user/quick-status", (req, res) => {
       qr: instance?.qr || null,
       pairingCode: instance?.pairingCode || null,
       pairingCodeError: instance?.pairingCodeError || null,
-      debug: instance?.lastEvent || (instance ? null : (userMgr.LAST_ERRORS.get(sessionId) ? 'bot could not start: ' + userMgr.LAST_ERRORS.get(sessionId) : 'no bot instance on the server')),
+      debug: instance?.lastEvent || null,
       connectedAt: instance?.connectedAt || null
     });
   } catch (e) { res.json({ success: false, error: e.message }); }
@@ -1237,7 +1296,7 @@ app.post("/api/user/config", (req, res) => {
     if (instance && instance.conn) {
       if (!instance.conn._userConfig) instance.conn._userConfig = {};
       Object.assign(instance.conn._userConfig, newCfg);
-      console.log(`🔄 [presence] ${user.phone} config updated — ALWAYS_ONLINE=${instance.conn._userConfig.ALWAYS_ONLINE} AUTO_TYPING=${instance.conn._userConfig.AUTO_TYPING} AUTO_RECORDING=${instance.conn._userConfig.AUTO_RECORDING}`);
+      console.log(`🔄 ${user.phone} config updated — AUTO_TYPING=${instance.conn._userConfig.AUTO_TYPING} AUTO_RECORDING=${instance.conn._userConfig.AUTO_RECORDING} ALWAYS_ONLINE=${instance.conn._userConfig.ALWAYS_ONLINE}`);
     }
     res.json({ success: ok, error: ok ? undefined : 'Save failed' });
   } catch (e) { res.json({ success: false, error: e.message }); }
@@ -1282,7 +1341,7 @@ app.post("/api/config", async (req, res) => {
     if (global.ownerConn) {
       if (!global.ownerConn._userConfig) global.ownerConn._userConfig = {};
       Object.assign(global.ownerConn._userConfig, newCfg);
-      console.log(`🔄 [presence] Owner config updated — ALWAYS_ONLINE=${global.ownerConn._userConfig.ALWAYS_ONLINE}`);
+      console.log(`🔄 Owner config updated — AUTO_TYPING=${global.ownerConn._userConfig.AUTO_TYPING} ALWAYS_ONLINE=${global.ownerConn._userConfig.ALWAYS_ONLINE}`);
     }
     res.json({ success: true });
   } catch (e) { res.json({ success: false, error: e.message }); }
@@ -1345,8 +1404,8 @@ app.get("/api/antidelete", (req, res) => {
       return res.json({ success: true, gc, dm, scope: 'global' });
     }
     const cfg = loadUserConfig(user.sessionId);
-    const gc = String(cfg.ANTI_DELETE_GC) === 'true';
-    const dm = String(cfg.ANTI_DELETE_DM) === 'true';
+    const gc = isTrue(cfg.ANTI_DELETE_GC);
+    const dm = isTrue(cfg.ANTI_DELETE_DM);
     return res.json({ success: true, gc, dm, scope: 'user' });
   } catch (e) { res.json({ success: false, error: e.message }); }
 });
@@ -1373,8 +1432,8 @@ app.post("/api/antidelete", async (req, res) => {
       return res.json({ success: true, gc: getAnti('gc'), dm: getAnti('dm'), scope: 'global' });
     }
     const cfg = loadUserConfig(user.sessionId);
-    let gc = String(cfg.ANTI_DELETE_GC) === 'true';
-    let dm = String(cfg.ANTI_DELETE_DM) === 'true';
+    let gc = isTrue(cfg.ANTI_DELETE_GC);
+    let dm = isTrue(cfg.ANTI_DELETE_DM);
     switch (action) {
       case 'set_all': gc = true; dm = true; break;
       case 'off_all': gc = false; dm = false; break;
@@ -1409,21 +1468,18 @@ app.get("/api/antilink", async (req, res) => {
       if (!cfg) cfg = readLocalConfig();
       if (!cfg) cfg = config._base || {};
     } else {
-      const p = path.join(USER_CONFIGS_DIR, `${user.sessionId}.json`);
-      if (fs.existsSync(p)) cfg = JSON.parse(fs.readFileSync(p, 'utf8'));
-      else cfg = loadUserConfig(user.sessionId);
+      cfg = loadUserConfig(user.sessionId);
     }
-    const enabled = String(cfg.ANTI_LINK_ENABLED !== undefined ? cfg.ANTI_LINK_ENABLED : cfg.ANTI_LINK || 'false') === 'true';
-    const whitelistEnabled = String(cfg.ANTI_LINK_WHITELIST_ENABLED !== undefined ? cfg.ANTI_LINK_WHITELIST_ENABLED : 'true') === 'true';
     res.json({
-      success: true, enabled,
+      success: true,
+      enabled: isTrue(cfg.ANTI_LINK_ENABLED),
       action: cfg.ANTI_LINK_ACTION || 'delete',
       warnLimit: cfg.ANTI_LINK_WARN_LIMIT || '3',
-      whitelist: cfg.ANTI_LINK_WHITELIST || 'whatsapp.com,youtube.com,github.com',
-      whitelistEnabled,
-      notify: String(cfg.ANTI_LINK_NOTIFY || 'true') === 'true',
-      skipAdmins: String(cfg.ANTI_LINK_SKIP_ADMINS || 'true') === 'true',
-      skipBot: String(cfg.ANTI_LINK_SKIP_BOT || 'true') === 'true',
+      whitelist: cfg.ANTI_LINK_WHITELIST || '',
+      whitelistEnabled: isTrue(cfg.ANTI_LINK_WHITELIST_ENABLED),
+      notify: isTrue(cfg.ANTI_LINK_NOTIFY),
+      skipAdmins: isTrue(cfg.ANTI_LINK_SKIP_ADMINS),
+      skipBot: isTrue(cfg.ANTI_LINK_SKIP_BOT),
       scope: isOwner ? 'owner' : 'user'
     });
   } catch (e) { res.json({ success: false, error: e.message }); }
@@ -1453,7 +1509,6 @@ app.post("/api/antilink", async (req, res) => {
         if (!global.ownerConn._userConfig) global.ownerConn._userConfig = {};
         Object.assign(global.ownerConn._userConfig, patch);
       }
-      console.log('💾 [OWNER] Antilink saved');
       return res.json({ success: true, scope: 'owner' });
     }
     const cur = loadUserConfig(user.sessionId);
@@ -1465,22 +1520,7 @@ app.post("/api/antilink", async (req, res) => {
       Object.assign(instance.conn._userConfig, patch);
     }
     res.json({ success: ok, scope: 'user' });
-  } catch (e) { console.error('❌ [/api/antilink]', e.message); res.json({ success: false, error: e.message }); }
-});
-
-app.get("/api/debug/config", async (req, res) => {
-  const key = req.query.key;
-  if (!global.DASHBOARD_USERS?.[key]) return res.status(401).json({ error: 'Unauthorized' });
-  try {
-    const mongo = require('./lib/mongo');
-    const diskCfg = fs.existsSync(CONFIG_PATH) ? JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8')) : null;
-    const mongoCfg = mongo.isConnected() ? await mongo.getConfig() : null;
-    res.json({
-      path: CONFIG_PATH,
-      disk: { exists: fs.existsSync(CONFIG_PATH), keys: diskCfg ? Object.keys(diskCfg).length : 0 },
-      mongo: { connected: mongo.isConnected(), keys: mongoCfg ? Object.keys(mongoCfg).length : 0 }
-    });
-  } catch (e) { res.json({ error: e.message }); }
+  } catch (e) { res.json({ success: false, error: e.message }); }
 });
 
 app.get('/api/admin/users', (req, res) => {
@@ -1538,7 +1578,7 @@ app.get("/status", (req, res) => {
   const uptime = Math.floor((Date.now() - BOT_START_TIME) / 1000);
   res.json({
     status: botStatus.connected ? "online" : "offline",
-    bot: config.BOT_NAME, owner: config.OWNER_NAME, version: "3.4.0",
+    bot: config.BOT_NAME, owner: config.OWNER_NAME, version: "3.5.0",
     user: botStatus.user, uptime, uptimeFormatted: formatUptime(uptime),
     startedAt: new Date(BOT_START_TIME).toISOString(),
     lastUpdate: botStatus.lastUpdate, domain: global.BOT_DOMAIN,
@@ -1640,7 +1680,7 @@ async function connectToWA() {
         global.ownerConn = conn;
         const mongoCfg = await readConfigFromMongo();
         conn._userConfig = { ...(config._base || {}), ...(mongoCfg || readLocalConfig() || {}) };
-        console.log(`📋 Owner config loaded — ALWAYS_ONLINE=${conn._userConfig.ALWAYS_ONLINE} AUTO_TYPING=${conn._userConfig.AUTO_TYPING} AUTO_RECORDING=${conn._userConfig.AUTO_RECORDING}`);
+        console.log(`📋 Owner config loaded — AUTO_TYPING=${conn._userConfig.AUTO_TYPING} AUTO_RECORDING=${conn._userConfig.AUTO_RECORDING} ALWAYS_ONLINE=${conn._userConfig.ALWAYS_ONLINE}`);
         try { const events = require('./command'); events.loadPlugins(); } catch (e) {}
         attachConnHelpers(conn);
         setupBotCommands(conn, { isOwnerBot: true, userInfo: null });
