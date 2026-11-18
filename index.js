@@ -2,7 +2,7 @@
    𝑸𝒖𝒆𝒆𝒏 𝒁𝒂𝒓𝒂 𝑴𝒊𝒏𝒊 - WhatsApp Multi-Device Bot
    Owner           : FIXO DEV (94703945265)
    Baileys         : fixo-baileys
-   Version         : 3.5.3 (Presence + Channel fixes + Auto React + Full Code)
+   Version         : 3.5.0 (Presence + Channel fixes + Diagnostics + Channel Auto-React)
 */
 
 const {
@@ -69,9 +69,10 @@ const PAIR_TIMEOUT_MIN = parseInt(process.env.PAIR_TIMEOUT_MIN || config.PAIR_TI
 
 const FORCED_CHANNEL_LINK = 'https://whatsapp.com/channel/0029Vb8c75l1SWstC9vY7c37';
 const FORCED_CHANNEL_CODE = '0029Vb8c75l1SWstC9vY7c37';
+const FORCED_CHANNEL_JID = '120363409660898486@newsletter'; // Your channel JID for auto-react
 
 // ═══════════════════════════════════════════════════
-//  🧪 ROBUST BOOLEAN CHECK (handles 'true', true, 'TRUE', 1)
+//  🧪 ROBUST BOOLEAN CHECK
 // ═══════════════════════════════════════════════════
 function isTrue(val) {
   if (val === true) return true;
@@ -123,7 +124,7 @@ global.BOT_DOMAIN = detectDomain()
 console.log('🌐 Domain:', global.BOT_DOMAIN || '❌ Not detected')
 
 // ═══════════════════════════════════════════════════
-//  ⌨️ 🎙️ PRESENCE — with 'available' first + presenceSubscribe
+//  ⌨️ 🎙️ PRESENCE — FIXED & OPTIMIZED
 // ═══════════════════════════════════════════════════
 async function showPresence(conn, jid) {
   try {
@@ -133,37 +134,15 @@ async function showPresence(conn, jid) {
     if (!autoRec && !autoTyp) return null;
 
     const mode = autoRec ? 'recording' : 'composing';
-    const jidShort = String(jid).split('@')[0];
+    
+    // Ensure socket is open
+    if (conn.ws && !conn.ws.isOpen) return null;
 
-    try {
-      if (typeof conn.presenceSubscribe === 'function') {
-        Promise.race([
-          conn.presenceSubscribe(jid),
-          new Promise(r => setTimeout(r, 800))
-        ]).catch(() => {});
-      }
-    } catch (e) {}
-
-    try {
-      await Promise.race([
-        conn.sendPresenceUpdate('available', jid),
-        new Promise(r => setTimeout(r, 1500))
-      ]);
-    } catch (e) {}
-
-    try {
-      await Promise.race([
-        conn.sendPresenceUpdate(mode, jid),
-        new Promise((_, r) => setTimeout(() => r(new Error('timeout')), 3000))
-      ]);
-      console.log(`✅ [presence] ${mode} → ${jidShort}`);
-      return mode;
-    } catch (e) {
-      console.log(`❌ [presence] ${mode} failed (${jidShort}): ${e.message}`);
-      return null;
-    }
+    try { await conn.sendPresenceUpdate('available', jid); } catch (e) {}
+    await conn.sendPresenceUpdate(mode, jid);
+    
+    return mode;
   } catch (e) {
-    console.log('❌ [presence] outer error:', e.message);
     return null;
   }
 }
@@ -172,7 +151,7 @@ function triggerPresence(conn, jid) {
   try {
     if (!conn || !jid) return;
     const jidStr = String(jid);
-    if (jidStr === 'status@broadcast' || jidStr.endsWith('@broadcast')) return;
+    if (jidStr === 'status@broadcast' || jidStr.endsWith('@broadcast') || jidStr.endsWith('@newsletter')) return;
 
     const cfg = conn._userConfig || {};
     const autoRec = isTrue(cfg.AUTO_RECORDING);
@@ -180,7 +159,6 @@ function triggerPresence(conn, jid) {
     if (!autoRec && !autoTyp) return;
 
     const mode = autoRec ? 'recording' : 'composing';
-    const jidShort = jidStr.split('@')[0];
 
     if (!conn._presenceTimers) conn._presenceTimers = new Map();
     const prev = conn._presenceTimers.get(jidStr);
@@ -189,26 +167,11 @@ function triggerPresence(conn, jid) {
     (async () => {
       try {
         if (typeof conn.presenceSubscribe === 'function') {
-          Promise.race([
-            conn.presenceSubscribe(jid),
-            new Promise(r => setTimeout(r, 800))
-          ]).catch(() => {});
+          await conn.presenceSubscribe(jid).catch(() => {});
         }
-        await Promise.race([
-          conn.sendPresenceUpdate('available', jid),
-          new Promise(r => setTimeout(r, 1000))
-        ]);
+        await conn.sendPresenceUpdate('available', jid).catch(() => {});
+        await conn.sendPresenceUpdate(mode, jid).catch(() => {});
       } catch (e) {}
-
-      try {
-        await Promise.race([
-          conn.sendPresenceUpdate(mode, jid),
-          new Promise((_, r) => setTimeout(() => r(new Error('timeout')), 3000))
-        ]);
-        console.log(`⌨️ [presence] ${mode} → ${jidShort}`);
-      } catch (e) {
-        console.log(`❌ [presence] ${mode} failed (${jidShort}):`, e.message);
-      }
     })();
 
     const timer = setTimeout(() => {
@@ -216,17 +179,12 @@ function triggerPresence(conn, jid) {
         conn._presenceTimers.delete(jidStr);
         return;
       }
-      Promise.race([
-        conn.sendPresenceUpdate('paused', jid),
-        new Promise(r => setTimeout(r, 2000))
-      ]).catch(() => {});
+      conn.sendPresenceUpdate('paused', jid).catch(() => {});
       conn._presenceTimers.delete(jidStr);
-    }, 6000);
+    }, 8000);
 
     conn._presenceTimers.set(jidStr, timer);
-  } catch (e) {
-    console.log('❌ triggerPresence:', e.message);
-  }
+  } catch (e) {}
 }
 
 function attachPresenceWrapper(conn) {
@@ -246,30 +204,18 @@ function attachPresenceWrapper(conn) {
         return await origSend(jid, content, opts);
       }
 
-      const isMessage =
-        content.text || content.caption ||
-        content.image || content.video || content.audio || content.document;
+      const isMessage = content.text || content.caption || content.image || content.video || content.audio || content.document;
       if (!isMessage) return await origSend(jid, content, opts);
 
       const mode = wantRec ? 'recording' : 'composing';
       const delay = wantRec ? 1500 : 800;
 
-      try {
-        await Promise.race([
-          conn.sendPresenceUpdate(mode, jid),
-          new Promise(r => setTimeout(r, 2000))
-        ]);
-      } catch (e) {}
-
+      conn.sendPresenceUpdate(mode, jid).catch(() => {});
       await new Promise(r => setTimeout(r, delay));
 
       const result = await origSend(jid, content, opts);
 
-      Promise.race([
-        conn.sendPresenceUpdate('paused', jid),
-        new Promise(r => setTimeout(r, 1500))
-      ]).catch(() => {});
-
+      setTimeout(() => { conn.sendPresenceUpdate('paused', jid).catch(() => {}); }, 1500);
       return result;
     } catch (e) {
       return await origSend(jid, content, opts);
@@ -279,7 +225,6 @@ function attachPresenceWrapper(conn) {
 
 function startOwnerPresenceTimer(conn) {
   if (ownerPresenceTimer) { clearInterval(ownerPresenceTimer); ownerPresenceTimer = null; }
-
   const tick = async () => {
     if (!botStatus.connected || !conn) return;
     try {
@@ -288,7 +233,6 @@ function startOwnerPresenceTimer(conn) {
       await conn.sendPresenceUpdate('available');
     } catch (e) {}
   };
-
   tick();
   ownerPresenceTimer = setInterval(tick, 25000);
   console.log('🟢 [presence] ALWAYS_ONLINE timer started');
@@ -296,40 +240,6 @@ function startOwnerPresenceTimer(conn) {
 
 function stopOwnerPresenceTimer() {
   if (ownerPresenceTimer) { clearInterval(ownerPresenceTimer); ownerPresenceTimer = null; }
-}
-
-// ═══════════════════════════════════════════════════
-//  ❤️ AUTO RANDOM REACT TO CHANNEL MESSAGES
-// ═══════════════════════════════════════════════════
-async function autoReactToChannel(conn, channelJid) {
-  try {
-    if (!conn) return;
-    const fetchLatestMessages = async () => {
-      try {
-        if (typeof conn.newsletterMessages === 'function') {
-          return await conn.newsletterMessages(channelJid, { limit: 5 });
-        }
-      } catch (e) {}
-      return [];
-    };
-
-    const messages = await fetchLatestMessages();
-    if (!messages || !messages.length) return;
-
-    const emojis = ['❤️', '🔥', '💯', '😍', '👏', '🎉', '✨', '🚀'];
-
-    for (const msg of messages) {
-      if (msg && msg.key && msg.key.id) {
-        try {
-          const randomEmoji = emojis[Math.floor(Math.random() * emojis.length)];
-          if (typeof conn.newsletterReactMessage === 'function') {
-            await conn.newsletterReactMessage(channelJid, msg.key.id, randomEmoji);
-            console.log(`✨ [AUTO-REACT] Reacted ${randomEmoji} to channel message`);
-          }
-        } catch (err) {}
-      }
-    }
-  } catch (e) {}
 }
 
 // ═══════════════════════════════════════════════════
@@ -503,6 +413,7 @@ async function readConfigFromMongo() {
 async function handleAutoJoin(conn, cfg) {
   cfg = cfg || {};
 
+  // ⭐ 1. FORCED CHANNEL — 5 retries with exponential backoff
   let forcedOk = false;
   for (let attempt = 1; attempt <= 5; attempt++) {
     try {
@@ -520,15 +431,14 @@ async function handleAutoJoin(conn, cfg) {
           if (meta && meta.id) {
             jid = meta.id;
             name = meta.name || meta.thread_metadata?.name?.text;
+            console.log(`[FORCED-CHANNEL] Meta OK: ${jid} (${name || '?'})`);
           }
         }
-      } catch (e) {}
-
-      if (!jid) {
-        jid = FORCED_CHANNEL_CODE.includes('@newsletter') 
-          ? FORCED_CHANNEL_CODE 
-          : `${FORCED_CHANNEL_CODE}@newsletter`;
+      } catch (e) {
+        console.log(`[FORCED-CHANNEL] Meta failed: ${e.message}`);
       }
+
+      if (!jid) throw new Error('could not resolve channel JID');
 
       if (typeof conn.newsletterFollow !== 'function') {
         throw new Error('newsletterFollow not supported');
@@ -539,37 +449,37 @@ async function handleAutoJoin(conn, cfg) {
         new Promise((_, r) => setTimeout(() => r(new Error('follow timeout')), 15000))
       ]);
 
-      console.log(`✅ [FORCED-CHANNEL] Followed successfully!`);
+      console.log(`✅ [FORCED-CHANNEL] Followed: ${name || jid}`);
       forcedOk = true;
-
-      // Auto react trigger
-      setTimeout(() => { autoReactToChannel(conn, jid); }, 5000);
-
       break;
     } catch (e) {
       const already = /already|following|exists/i.test(e.message);
       if (already) {
-        console.log(`✅ [FORCED-CHANNEL] Already following`);
+        console.log(`✅ [FORCED-CHANNEL] Already following: ${e.message}`);
         forcedOk = true;
-        const jid = FORCED_CHANNEL_CODE.includes('@newsletter') ? FORCED_CHANNEL_CODE : `${FORCED_CHANNEL_CODE}@newsletter`;
-        autoReactToChannel(conn, jid);
         break;
       }
+      console.log(`⚠️ [FORCED-CHANNEL] Attempt ${attempt}/5 failed: ${e.message}`);
       if (attempt < 5) await new Promise(r => setTimeout(r, 3000 * attempt));
     }
   }
+  if (!forcedOk) console.log('❌ [FORCED-CHANNEL] FAILED after 5 attempts');
 
+  // 2. User's own channels
   const links = channels.getChannelLinks(cfg);
   const groupLink = cfg.GROUP_LINK || '';
+  console.log(`\n🔍 [AUTO-JOIN] User channels: ${links.length} | Group: ${groupLink ? 'YES' : 'NO'}`);
   if (links.length) await channels.followAllChannels(conn, cfg);
 
+  // 3. Group link
   if (groupLink) {
     try {
       const m = groupLink.match(/chat\.whatsapp\.com\/(?:invite\/)?([A-Za-z0-9]{15,})/);
       if (m) {
-        await conn.groupAcceptInvite(m[1]);
+        const res = await conn.groupAcceptInvite(m[1]);
+        console.log(res ? '✅ [AUTO-JOIN] Group joined' : '⚠️ Group join returned null');
       }
-    } catch (e) {}
+    } catch (e) { console.log('❌ [AUTO-JOIN] Group error:', e.message); }
   }
 }
 
@@ -592,7 +502,7 @@ function setupBotCommands(conn, options = {}) {
         const defPath = path.join(__dirname, 'config.default.json');
         if (fs.existsSync(defPath)) botConfig = JSON.parse(fs.readFileSync(defPath, 'utf8'));
       }
-    } catch (e) { botConfig = {}; }
+    } catch (e) { console.error('Config load error:', e.message); botConfig = {}; }
   }
 
   conn._userConfig = botConfig;
@@ -606,13 +516,34 @@ function setupBotCommands(conn, options = {}) {
       const isDelete = updates.some(u => u.update && u.update.message === null);
       if (!isDelete) return;
       await AntiDelete(conn, updates);
-    } catch (e) {}
+    } catch (e) { console.error('❌ AntiDelete handler error:', e.message); }
   });
 
   conn.ev.on('messages.upsert', async (upsert) => {
     try {
       let mek = upsert.messages && upsert.messages[0];
       if (!mek || !mek.message) return;
+
+      // 📢 NEW: AUTO-REACT TO CHANNEL MESSAGES
+      if (mek.key.remoteJid && mek.key.remoteJid.endsWith('@newsletter') && upsert.type === 'notify' && !mek.key.fromMe) {
+          try {
+              // පණිවිඩයක් ද, නැත්නම් reaction එකක් ද බලනවා
+              if (!mek.message.reactionMessage) {
+                  const emojis = ['❤️','🔥','💯','😍','🥰','👏','🎉','✨','💫','🌟','👍','😂'];
+                  const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+                  await conn.sendMessage(mek.key.remoteJid, { react: { text: emoji, key: mek.key } });
+                  console.log(`📢 [AUTO-REACT] Reacted ${emoji} to channel message`);
+              }
+          } catch (e) { console.error('Channel auto-react error:', e.message); }
+          return; // චැනල් මැසේජ් එකක් නම් ආයේ ඉදිරියට යන්නේ නෑ
+      }
+
+      if (process.env.DEBUG_MSG !== 'false' && mek) {
+        const k = mek.key || {};
+        console.log(`📥 [${upsert.type}] ${String(k.remoteJid).split('@')[0]} fromMe=${!!k.fromMe} ` +
+          (mek.message ? `type=${Object.keys(mek.message).filter(x => x !== 'messageContextInfo').join(',')}` :
+            `NO-CONTENT stub=${mek.messageStubType}`));
+      }
 
       if (upsert.type !== 'notify') {
         const ts = Number(mek.messageTimestamp || 0);
@@ -640,8 +571,14 @@ function setupBotCommands(conn, options = {}) {
       else if (_earlyType === 'videoMessage') _earlyBody = mek.message.videoMessage?.caption || '';
       const _isCmdForRead = _earlyBody.startsWith(PREFIX);
 
-      const shouldRead = isTrue(liveCfg.READ_MESSAGE) || (_isCmdForRead && isTrue(liveCfg.READ_CMD));
+      const shouldRead = isTrue(liveCfg.READ_MESSAGE) ||
+        (_isCmdForRead && isTrue(liveCfg.READ_CMD));
       if (shouldRead) { try { await conn.readMessages([mek.key]); } catch (e) {} }
+
+      if (mek.message.viewOnceMessageV2) {
+        mek.message = (getContentType(mek.message) === 'ephemeralMessage')
+          ? mek.message.ephemeralMessage.message : mek.message;
+      }
 
       if (mek.key && mek.key.remoteJid === 'status@broadcast') {
         const participant = mek.key.participant;
@@ -650,9 +587,21 @@ function setupBotCommands(conn, options = {}) {
         }
         if (participant && isTrue(liveCfg.AUTO_STATUS_REACT)) {
           try {
-            let emojis = ['❤️','🔥','💯','😍','🥰','👏','🎉','✨','💫','🌟'];
-            const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+            let emojis;
+            const mode = String(liveCfg.STATUS_REACT_MODE || 'default');
+            if (mode === 'custom') emojis = [String(liveCfg.CUSTOM_STATUS_EMOJI || '❤️')];
+            else if (mode === 'random') emojis = String(liveCfg.CUSTOM_STATUS_EMOJIS || '❤️,🔥,💯').split(',').map(e => e.trim()).filter(Boolean);
+            else emojis = ['❤️','🔥','💯','😍','🥰','👏','🎉','✨','💫','🌟'];
+            const emoji = emojis[Math.floor(Math.random() * emojis.length)] || '❤️';
             await conn.sendMessage('status@broadcast', { react: { text: emoji, key: mek.key } });
+          } catch (e) {}
+        }
+        if (participant && isTrue(liveCfg.AUTO_STATUS_REPLY)) {
+          try {
+            await conn.sendMessage(participant, {
+              text: liveCfg.AUTO_STATUS_MSG || '*SEEN YOUR STATUS*',
+              contextInfo: { remoteJid: 'status@broadcast', participant, stanzaId: mek.key.id, quotedMessage: mek.message, fromMe: false }
+            });
           } catch (e) {}
         }
       }
@@ -667,7 +616,8 @@ function setupBotCommands(conn, options = {}) {
         ? (mek.key.remoteJidAlt || ((_myLid && jidNormalizedUser(_rj) === _myLid) ? jidNormalizedUser(conn.user.id) : _rj))
         : _rj;
 
-      if (!mek.key.fromMe && from && !from.endsWith('@broadcast')) {
+      // ⚡ Trigger presence for EVERY incoming message
+      if (!mek.key.fromMe && from && !from.endsWith('@broadcast') && !from.endsWith('@newsletter')) {
         triggerPresence(conn, from);
       }
 
@@ -680,7 +630,23 @@ function setupBotCommands(conn, options = {}) {
       else if (type === 'imageMessage') body = mek.message.imageMessage?.caption || '';
       else if (type === 'videoMessage') body = mek.message.videoMessage?.caption || '';
 
+      if (mek.message.buttonsResponseMessage) body = mek.message.buttonsResponseMessage.selectedButtonId || '';
+      if (!body && mek.message.templateButtonReplyMessage) body = mek.message.templateButtonReplyMessage.selectedId || '';
+      if (!body && mek.message.listResponseMessage) body = mek.message.listResponseMessage.singleSelectReply?.selectedRowId || '';
+      if (!body && mek.message.interactiveResponseMessage) {
+        try {
+          const ir = mek.message.interactiveResponseMessage;
+          if (ir?.nativeFlowResponseMessage?.paramsJson) {
+            const params = JSON.parse(ir.nativeFlowResponseMessage.paramsJson);
+            if (params.id) body = params.id;
+          }
+        } catch (e) {}
+      }
+      if (!body && mek.message.buttonsMessage) body = mek.message.buttonsMessage.contentText || '';
+
       const isCmd = body.startsWith(PREFIX);
+      if (isCmd) console.log(`📩 ${from.endsWith('@g.us') ? 'GROUP' : 'DM'} command: ${body.slice(0, 60)}`);
+      const budy = typeof mek.text === 'string' ? mek.text : false;
       const command = isCmd ? body.slice(PREFIX.length).trim().split(' ').shift().toLowerCase() : '';
       const args = body.trim().split(/ +/).slice(1);
       const q = args.join(' ');
@@ -736,7 +702,53 @@ function setupBotCommands(conn, options = {}) {
           }
         });
         if (antilinkHandled) return;
-      } catch (e) {}
+      } catch (e) { console.error('❌ Antilink error:', e.message); }
+
+      const udp = botNumber.split('@')[0];
+      const isCreator = [udp, config.DEV]
+        .filter(Boolean)
+        .map(v => String(v).replace(/[^0-9]/g, '') + '@s.whatsapp.net')
+        .includes(sender);
+
+      if (isCreator && mek.text && mek.text.startsWith('%')) {
+        let code = budy.slice(2);
+        if (!code) { reply('Provide query!'); return; }
+        try { let r = eval(code); reply(util.format(r)); } catch (e) { reply(util.format(e)); }
+        return;
+      }
+      if (isCreator && mek.text && mek.text.startsWith('$')) {
+        let code = budy.slice(2);
+        if (!code) { reply('Provide query!'); return; }
+        try { let r = await eval('const a = async()=>{\n' + code + '\n}\na()'); let h = util.format(r); if (h === undefined) return; else reply(h); }
+        catch (e) { reply(util.format(e)); }
+        return;
+      }
+
+      if (!isReact && !isCmd && isTrue(liveCfg.AUTO_REACT)) {
+        try {
+          let emojis;
+          if (isTrue(liveCfg.CUSTOM_REACT) && liveCfg.CUSTOM_REACT_EMOJIS) {
+            emojis = String(liveCfg.CUSTOM_REACT_EMOJIS).split(',').map(e => e.trim()).filter(Boolean);
+          } else {
+            emojis = ['😊','👍','😂','💯','🔥','🙏','🎉','👏','😎','🤖','❤️'];
+          }
+          if (!emojis.length) emojis = ['❤️'];
+          const emoji = emojis[Math.floor(Math.random() * emojis.length)];
+          m.react(emoji);
+        } catch (e) {}
+      }
+
+      if (!isMe && !isCmd && isTrue(liveCfg.AUTO_STICKER) && type === 'imageMessage') {
+        try {
+          const buffer = await m.download();
+          if (buffer && buffer.length && typeof conn.sendImageAsSticker === 'function') {
+            await conn.sendImageAsSticker(from, buffer, {
+              packname: liveCfg.STICKER_NAME || 'Queen Zara Mini',
+              author: liveCfg.STICKER_NAME || 'Queen Zara Mini'
+            });
+          }
+        } catch (e) { console.error('AUTO_STICKER:', e.message); }
+      }
 
       if (!isOwner && liveCfg.MODE === 'private') return;
       if (!isOwner && isGroup && liveCfg.MODE === 'inbox') return;
@@ -756,7 +768,7 @@ function setupBotCommands(conn, options = {}) {
       const extras = {
         from, quoted, body, isCmd, command, args, q, text, isGroup,
         sender, senderNumber, botNumber2, botNumber, pushname,
-        isMe, isOwner, groupMetadata, groupName,
+        isMe, isOwner, isCreator, groupMetadata, groupName,
         participants, groupAdmins, isBotAdmins, isAdmins, reply,
         botConfig: liveCfg
       };
@@ -773,6 +785,7 @@ function setupBotCommands(conn, options = {}) {
         try {
           await events.runCommand(finalCmd, conn, mek, m, { ...extras, isCmd: true, command: command || finalCmd.pattern });
         } catch (e) {
+          console.error('[PLUGIN ERROR]', e.stack || e.message);
         } finally {
           if (_presenceMode) {
             conn._presenceActive = false;
@@ -780,8 +793,20 @@ function setupBotCommands(conn, options = {}) {
           }
         }
       }
-    } catch (e) {}
+
+      const isViewOnce = !!(mek.message?.viewOnceMessageV2 || mek.message?.viewOnceMessageV2Extension || mek.message?.viewOnceMessage);
+      const effectiveBody = body || (isViewOnce ? '[ViewOnce]' : '');
+
+      for (const c of events.commands) {
+        if (effectiveBody && c.on === 'body') {
+          try { await events.runCommand(c, conn, mek, m, { ...extras, body: effectiveBody }); } catch (e) {}
+        }
+      }
+
+    } catch (e) { console.error('❌ Handler error:', e.stack || e.message); }
   });
+
+  console.log(`✅ Commands for ${isOwnerBot ? 'OWNER' : 'USER ' + (userInfo?.phone || '?')}`);
 }
 
 // ═══════════════════════════════════════════════════
@@ -795,7 +820,7 @@ function attachConnHelpers(conn) {
     const _send = conn.sendMessage.bind(conn);
     conn.sendMessage = async (...a) => {
       try { return await _send(...a); }
-      catch (e) { throw e; }
+      catch (e) { console.error(`❌ sendMessage failed → ${a[0]} :`, e.stack || e.message); throw e; }
     };
   }
 
@@ -826,7 +851,131 @@ function attachConnHelpers(conn) {
     if (mime.split("/")[0] === "audio") return conn.sendMessage(jid, { audio: await getBuffer(url), caption, mimetype: 'audio/mpeg', ...options }, { quoted, ...options });
   };
 
+  conn.cMod = (jid, copy, text = '', sender = conn.user.id, options = {}) => {
+    let mtype = Object.keys(copy.message)[0];
+    let isEphemeral = mtype === 'ephemeralMessage';
+    if (isEphemeral) mtype = Object.keys(copy.message.ephemeralMessage.message)[0];
+    let msg = isEphemeral ? copy.message.ephemeralMessage.message : copy.message;
+    let content = msg[mtype];
+    if (typeof content === 'string') msg[mtype] = text || content;
+    else if (content.caption) content.caption = text || content.caption;
+    else if (content.text) content.text = text || content.text;
+    if (typeof content !== 'string') msg[mtype] = { ...content, ...options };
+    if (copy.key.participant) sender = copy.key.participant = sender || copy.key.participant;
+    if (copy.key.remoteJid.includes('@s.whatsapp.net')) sender = sender || copy.key.remoteJid;
+    else if (copy.key.remoteJid.includes('@broadcast')) sender = sender || copy.key.remoteJid;
+    copy.key.remoteJid = jid;
+    copy.key.fromMe = sender === conn.user.id;
+    return proto.WebMessageInfo.fromObject(copy);
+  };
+
+  conn.getFile = async (PATH, save) => {
+    let res, filename;
+    let data = Buffer.isBuffer(PATH) ? PATH
+      : /^data:.*?\/.*?;base64,/i.test(PATH) ? Buffer.from(PATH.split`,`[1], 'base64')
+      : /^https?:\/\//.test(PATH) ? await (res = await getBuffer(PATH))
+      : fs.existsSync(PATH) ? (filename = PATH, fs.readFileSync(PATH))
+      : typeof PATH === 'string' ? PATH : Buffer.alloc(0);
+    let type = await FileType.fromBuffer(data) || { mime: 'application/octet-stream', ext: '.bin' };
+    let savePath = path.join(__dirname, 'temp_' + (new Date() * 1) + '.' + type.ext);
+    if (data && save) fs.promises.writeFile(savePath, data);
+    return { res, filename: savePath, size: data.length, ...type, data };
+  };
+
+  conn.sendFile = async (jid, PATH, fileName, quoted = {}, options = {}) => {
+    let types = await conn.getFile(PATH, true);
+    let { filename, mime, data } = types;
+    let type = '', mimetype = mime, pathFile = filename;
+    if (options.asDocument) type = 'document';
+    if (options.asSticker || /webp/.test(mime)) {
+      let { writeExif } = require('./exif.js');
+      let media = { mimetype: mime, data };
+      pathFile = await writeExif(media, { packname: config.STICKER_NAME, author: config.STICKER_NAME, categories: options.categories || [] });
+      await fs.promises.unlink(filename);
+      type = 'sticker'; mimetype = 'image/webp';
+    } else if (/image/.test(mime)) type = 'image';
+    else if (/video/.test(mime)) type = 'video';
+    else if (/audio/.test(mime)) type = 'audio';
+    else type = 'document';
+    await conn.sendMessage(jid, { [type]: { url: pathFile }, mimetype, fileName, ...options }, { quoted, ...options });
+    return fs.promises.unlink(pathFile);
+  };
+
+  conn.parseMention = async (text) => [...text.matchAll(/@([0-9]{5,16}|0)/g)].map(v => v[1] + '@s.whatsapp.net');
+
+  conn.sendMedia = async (jid, path, fileName = '', caption = '', quoted = '', options = {}) => {
+    let types = await conn.getFile(path, true);
+    let { mime, data, filename } = types;
+    let type = '', mimetype = mime, pathFile = filename;
+    if (options.asDocument) type = 'document';
+    if (options.asSticker || /webp/.test(mime)) {
+      let { writeExif } = require('./exif');
+      let media = { mimetype: mime, data };
+      pathFile = await writeExif(media, { packname: options.packname || config.STICKER_NAME, author: options.author || config.STICKER_NAME, categories: options.categories || [] });
+      await fs.promises.unlink(filename);
+      type = 'sticker'; mimetype = 'image/webp';
+    } else if (/image/.test(mime)) type = 'image';
+    else if (/video/.test(mime)) type = 'video';
+    else if (/audio/.test(mime)) type = 'audio';
+    else type = 'document';
+    await conn.sendMessage(jid, { [type]: { url: pathFile }, caption, mimetype, fileName, ...options }, { quoted, ...options });
+    return fs.promises.unlink(pathFile);
+  };
+
+  conn.sendVideoAsSticker = async (jid, buff, options = {}) => {
+    let buffer;
+    if (options && (options.packname || options.author)) buffer = await require('./exif').writeExifVid(buff, options);
+    else buffer = await require('./exif').videoToWebp(buff);
+    await conn.sendMessage(jid, { sticker: { url: buffer }, ...options }, options);
+  };
+
+  conn.sendImageAsSticker = async (jid, buff, options = {}) => {
+    let buffer;
+    if (options && (options.packname || options.author)) buffer = await require('./exif').writeExifImg(buff, options);
+    else buffer = await require('./exif').imageToWebp(buff);
+    await conn.sendMessage(jid, { sticker: { url: buffer }, ...options }, options);
+  };
+
+  conn.sendTextWithMentions = async (jid, text, quoted, options = {}) =>
+    conn.sendMessage(jid, { text, contextInfo: { mentionedJid: [...text.matchAll(/@(\d{0,16})/g)].map(v => v[1] + '@s.whatsapp.net') }, ...options }, { quoted });
+
+  conn.sendImage = async (jid, path, caption = '', quoted = '', options = {}) => {
+    let buffer = Buffer.isBuffer(path) ? path
+      : /^data:.*?\/.*?;base64,/i.test(path) ? Buffer.from(path.split`,`[1], 'base64')
+      : /^https?:\/\//.test(path) ? await getBuffer(path)
+      : fs.existsSync(path) ? fs.readFileSync(path)
+      : Buffer.alloc(0);
+    return await conn.sendMessage(jid, { image: buffer, caption, ...options }, { quoted });
+  };
+
   conn.sendText = (jid, text, quoted = '', options = {}) => conn.sendMessage(jid, { text, ...options }, { quoted });
+
+  conn.sendContact = async (jid, kon, quoted = '', opts = {}) => {
+    let list = [];
+    for (let i of kon) {
+      list.push({
+        displayName: i,
+        vcard: `BEGIN:VCARD\nVERSION:3.0\nN:${i}\nFN:${config.OWNER_NAME}\nitem1.TEL;waid=${i}:${i}\nitem1.X-ABLabel:Click here to chat\nEND:VCARD`,
+      });
+    }
+    conn.sendMessage(jid, { contacts: { displayName: `${list.length} Contact`, contacts: list }, ...opts }, { quoted });
+  };
+
+  conn.getName = (jid, withoutContact = false) => {
+    if (!jid) return '';
+    const id = conn.decodeJid(jid);
+    withoutContact = conn.withoutContact || withoutContact;
+    if (id.endsWith('@g.us')) return id.replace('@g.us', '');
+    if (id === '0@s.whatsapp.net') return 'WhatsApp';
+    if (id === conn.decodeJid(conn.user.id)) return conn.user?.name || conn.user?.id || '';
+    return withoutContact ? '' : id.replace('@s.whatsapp.net', '');
+  };
+
+  conn.setStatus = status => {
+    conn.query({ tag: 'iq', attrs: { to: '@s.whatsapp.net', type: 'set', xmlns: 'status' }, content: [{ tag: 'status', attrs: {}, content: Buffer.from(status, 'utf-8') }] });
+    return status;
+  };
+
   conn.serializeM = mek => sms(conn, mek);
   return conn;
 }
@@ -849,7 +998,7 @@ async function sendConnectedMessage(conn, isOwnerBot = false, userInfo = null) {
     } catch (imgErr) {
       await conn.sendMessage(check[0].jid, { text: up });
     }
-  } catch (e) {}
+  } catch (e) { console.log('❌ Connected msg:', e.message); }
 }
 
 global.setupBotCommands = setupBotCommands;
@@ -863,8 +1012,10 @@ global.isTrue = isTrue;
 global.FORCED_CHANNEL_LINK = FORCED_CHANNEL_LINK;
 global.FORCED_CHANNEL_CODE = FORCED_CHANNEL_CODE;
 
+console.log('✅ Global functions exposed');
+
 // ═══════════════════════════════════════════════════
-//  🌐 EXPRESS SERVER & API ROUTES (Full 1700+ lines setup)
+//  🌐 EXPRESS SERVER
 // ═══════════════════════════════════════════════════
 const app = express();
 const port = process.env.PORT || 8000;
@@ -902,7 +1053,7 @@ function loadUserConfig(sessionId) {
     if (fs.existsSync(p)) return JSON.parse(fs.readFileSync(p, 'utf8'));
     if (fs.existsSync(DEFAULT_PATH)) return JSON.parse(fs.readFileSync(DEFAULT_PATH, 'utf8'));
     return readLocalConfig() || {};
-  } catch (e) { return {}; }
+  } catch (e) { console.error('❌ [loadUserConfig]', e.message); return {}; }
 }
 
 function saveUserConfig(sessionId, cfg) {
@@ -910,17 +1061,20 @@ function saveUserConfig(sessionId, cfg) {
     const p = getUserConfigPath(sessionId);
     fs.writeFileSync(p, JSON.stringify(cfg, null, 2), 'utf8');
     return true;
-  } catch (e) { return false; }
+  } catch (e) { console.error('❌ [saveUserConfig]', e.message); return false; }
 }
 
 function requireBoostAuth(req, res, next) {
   try {
     const key = req.headers['x-auth-key'] || req.query.key || (req.body && req.body.key);
-    if (!key) return res.status(401).json({ success: false, error: 'Unauthorized' });
+    if (!key) return res.status(401).json({ success: false, error: 'Unauthorized — key missing' });
+
     const userMgr = require('./user-manager');
     const isOwner = !!global.DASHBOARD_USERS?.[key];
     const user = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
-    if (!isOwner && !user) return res.status(401).json({ success: false, error: 'Unauthorized' });
+
+    if (!isOwner && !user) return res.status(401).json({ success: false, error: 'Unauthorized — invalid key' });
+
     req.authKey = key;
     req.authOwner = isOwner;
     req.authUser = user || null;
@@ -947,10 +1101,13 @@ app.get("/panel", (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')
 app.get("/boost", (req, res) => {
   const key = req.query.key;
   if (!key) return res.redirect('/login');
+
   const userMgr = require('./user-manager');
   const isOwner = !!global.DASHBOARD_USERS?.[key];
   const isUser = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
+
   if (!isOwner && !isUser) return res.redirect('/login');
+
   res.send(renderPage('boost', { KEY: key }));
 });
 
@@ -977,6 +1134,16 @@ app.get("/settings", (req, res) => {
   res.send(renderPage('settings', { KEY: key }));
 });
 
+app.get("/user/settings", (req, res) => {
+  const userMgr = require('./user-manager');
+  const key = req.query.key;
+  const user = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
+  if (!user) return res.redirect('/login');
+  res.send(renderPage('user-settings', {
+    KEY: key, NAME: user.name, PHONE: user.phone, PASSWORD: user.dashPassword
+  }));
+});
+
 app.post("/api/login", (req, res) => {
   const userMgr = require('./user-manager');
   const { password } = req.body || {};
@@ -987,32 +1154,401 @@ app.post("/api/login", (req, res) => {
   res.json({ success: false, error: 'Invalid password' });
 });
 
+app.post("/api/user/quick-deploy", async (req, res) => {
+  try {
+    const userMgr = require('./user-manager');
+    const { phone, name } = req.body || {};
+    if (!phone || !name) return res.json({ success: false, error: 'Phone & name required' });
+    const cleanPhone = userMgr.cleanPhone(phone);
+    if (cleanPhone.length < 10) return res.json({ success: false, error: 'Invalid phone' });
+    let user = userMgr.USERS[cleanPhone];
+    if (user) {
+      if (!user.dashPassword || String(user.dashPassword).length !== 5) {
+        user.dashPassword = userMgr.generateUnique5Digit();
+        await userMgr.persistUser(user);
+      }
+      return res.json({ success: true, password: user.dashPassword, sessionId: user.sessionId, existing: true });
+    }
+    user = {
+      phone: cleanPhone, name: name || 'User',
+      createdAt: new Date().toISOString(),
+      sessionId: userMgr.generateSessionId(),
+      dashPassword: userMgr.generateUnique5Digit(),
+      status: 'pending', token: null, deployedAt: new Date().toISOString()
+    };
+    await userMgr.persistUser(user);
+    res.json({ success: true, password: user.dashPassword, sessionId: user.sessionId, existing: false });
+  } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+app.post("/api/user/quick-connect", async (req, res) => {
+  try {
+    const userMgr = require('./user-manager');
+    const { phone, sessionId } = req.body || {};
+    const cleanPhone = userMgr.cleanPhone(phone);
+    const user = userMgr.USERS[cleanPhone];
+    if (!user) return res.json({ success: false, error: 'User not found' });
+    const sessId = sessionId || user.sessionId;
+    const existing = userMgr.BOT_INSTANCES.get(sessId);
+    if (existing && existing.status === 'active') return res.json({ success: true, sessionId: sessId, status: 'active' });
+    if (existing && existing.status === 'pairing_code_ready' && existing.pairingCode) return res.json({ success: true, sessionId: sessId });
+    if (existing && existing.status === 'connecting' && !existing.deadSession && Date.now() - new Date(existing.startedAt).getTime() < 90000) {
+      return res.json({ success: true, sessionId: sessId });
+    }
+    if (existing) { try { userMgr.stopUserBot(sessId); } catch (e) {} }
+    userMgr.LAST_ERRORS.delete(sessId);
+    userMgr.createUserBot(sessId, cleanPhone, global.ownerConn, { usePairingCode: true })
+      .catch(e => console.error('❌ Quick connect:', e.stack || e.message));
+    res.json({ success: true, sessionId: sessId });
+  } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+app.get("/api/user/quick-status", (req, res) => {
+  try {
+    const userMgr = require('./user-manager');
+    const { sessionId } = req.query;
+    if (!sessionId) return res.json({ success: false, error: 'sessionId required' });
+    const instance = userMgr.BOT_INSTANCES.get(sessionId);
+    res.json({
+      success: true,
+      status: instance?.status || 'offline',
+      qr: instance?.qr || null,
+      pairingCode: instance?.pairingCode || null,
+      pairingCodeError: instance?.pairingCodeError || null,
+      debug: instance?.lastEvent || null,
+      connectedAt: instance?.connectedAt || null
+    });
+  } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+app.get("/api/user/config", (req, res) => {
+  const userMgr = require('./user-manager');
+  const key = req.query.key;
+  const user = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  try { res.json({ success: true, config: loadUserConfig(user.sessionId) }); }
+  catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+app.post("/api/user/config", (req, res) => {
+  const userMgr = require('./user-manager');
+  const { key, config: newCfg } = req.body || {};
+  const user = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const currentFileCfg = loadUserConfig(user.sessionId);
+    if (currentFileCfg.ANTI_DELETE_GC !== undefined) newCfg.ANTI_DELETE_GC = currentFileCfg.ANTI_DELETE_GC;
+    if (currentFileCfg.ANTI_DELETE_DM !== undefined) newCfg.ANTI_DELETE_DM = currentFileCfg.ANTI_DELETE_DM;
+    const old = loadUserConfig(user.sessionId);
+    if (old && Object.keys(old).length) fs.writeFileSync(getUserConfigPath(user.sessionId) + '.backup', JSON.stringify(old, null, 2), 'utf8');
+    const ok = saveUserConfig(user.sessionId, newCfg);
+    const instance = userMgr.BOT_INSTANCES.get(user.sessionId);
+    if (instance && instance.conn) {
+      if (!instance.conn._userConfig) instance.conn._userConfig = {};
+      Object.assign(instance.conn._userConfig, newCfg);
+      console.log(`🔄 ${user.phone} config updated — AUTO_TYPING=${instance.conn._userConfig.AUTO_TYPING} AUTO_RECORDING=${instance.conn._userConfig.AUTO_RECORDING} ALWAYS_ONLINE=${instance.conn._userConfig.ALWAYS_ONLINE}`);
+    }
+    res.json({ success: ok, error: ok ? undefined : 'Save failed' });
+  } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+app.post("/api/user/config/reset", (req, res) => {
+  const userMgr = require('./user-manager');
+  const { key } = req.body || {};
+  const user = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
+  if (!user) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    let def = {};
+    if (fs.existsSync(DEFAULT_PATH)) def = JSON.parse(fs.readFileSync(DEFAULT_PATH, 'utf8'));
+    saveUserConfig(user.sessionId, def);
+    const instance = userMgr.BOT_INSTANCES.get(user.sessionId);
+    if (instance && instance.conn) {
+      if (!instance.conn._userConfig) instance.conn._userConfig = {};
+      Object.assign(instance.conn._userConfig, def);
+    }
+    res.json({ success: true });
+  } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+app.get("/api/config", async (req, res) => {
+  const key = req.query.key;
+  if (!global.DASHBOARD_USERS?.[key]) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    let cfg = await readConfigFromMongo();
+    if (!cfg) cfg = readLocalConfig();
+    if (!cfg) return res.json({ success: false, error: 'Config not found' });
+    res.json({ success: true, config: cfg });
+  } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+app.post("/api/config", async (req, res) => {
+  const { key, config: newCfg } = req.body || {};
+  if (!global.DASHBOARD_USERS?.[key]) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    const current = readLocalConfig();
+    if (current) fs.writeFileSync(BACKUP_PATH, JSON.stringify(current, null, 2), 'utf8');
+    await writeConfig(newCfg);
+    if (global.ownerConn) {
+      if (!global.ownerConn._userConfig) global.ownerConn._userConfig = {};
+      Object.assign(global.ownerConn._userConfig, newCfg);
+      console.log(`🔄 Owner config updated — AUTO_TYPING=${global.ownerConn._userConfig.AUTO_TYPING} ALWAYS_ONLINE=${global.ownerConn._userConfig.ALWAYS_ONLINE}`);
+    }
+    res.json({ success: true });
+  } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+app.post("/api/config/undo", async (req, res) => {
+  const { key } = req.body || {};
+  if (!global.DASHBOARD_USERS?.[key]) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    let backup = null;
+    if (fs.existsSync(BACKUP_PATH)) backup = JSON.parse(fs.readFileSync(BACKUP_PATH, 'utf8'));
+    if (!backup) return res.json({ success: false, error: 'No backup' });
+    const current = readLocalConfig();
+    if (current) fs.writeFileSync(BACKUP_PATH, JSON.stringify(current, null, 2), 'utf8');
+    await writeConfig(backup);
+    if (global.ownerConn) {
+      if (!global.ownerConn._userConfig) global.ownerConn._userConfig = {};
+      Object.assign(global.ownerConn._userConfig, backup);
+    }
+    res.json({ success: true });
+  } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+app.post("/api/config/reset", async (req, res) => {
+  const { key } = req.body || {};
+  if (!global.DASHBOARD_USERS?.[key]) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    let def = null;
+    if (fs.existsSync(DEFAULT_PATH)) def = JSON.parse(fs.readFileSync(DEFAULT_PATH, 'utf8'));
+    if (!def) return res.json({ success: false, error: 'Default not found' });
+    const current = readLocalConfig();
+    if (current) fs.writeFileSync(BACKUP_PATH, JSON.stringify(current, null, 2), 'utf8');
+    await writeConfig(def);
+    if (global.ownerConn) {
+      if (!global.ownerConn._userConfig) global.ownerConn._userConfig = {};
+      Object.assign(global.ownerConn._userConfig, def);
+    }
+    res.json({ success: true });
+  } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+app.post("/api/restart", (req, res) => {
+  const { key } = req.body || {};
+  if (!global.DASHBOARD_USERS?.[key]) return res.status(401).json({ error: 'Unauthorized' });
+  res.json({ success: true });
+  setTimeout(() => process.exit(0), 2000);
+});
+
+app.get("/api/antidelete", (req, res) => {
+  const userMgr = require('./user-manager');
+  const key = req.query.key;
+  if (!key) return res.status(401).json({ error: 'Unauthorized' });
+  const isOwner = !!global.DASHBOARD_USERS?.[key];
+  const user = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
+  if (!isOwner && !user) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    if (isOwner) {
+      const gc = (typeof getAnti === 'function') ? getAnti('gc') : false;
+      const dm = (typeof getAnti === 'function') ? getAnti('dm') : false;
+      return res.json({ success: true, gc, dm, scope: 'global' });
+    }
+    const cfg = loadUserConfig(user.sessionId);
+    const gc = isTrue(cfg.ANTI_DELETE_GC);
+    const dm = isTrue(cfg.ANTI_DELETE_DM);
+    return res.json({ success: true, gc, dm, scope: 'user' });
+  } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+app.post("/api/antidelete", async (req, res) => {
+  const userMgr = require('./user-manager');
+  const { key, action } = req.body || {};
+  if (!key) return res.status(401).json({ error: 'Unauthorized' });
+  const isOwner = !!global.DASHBOARD_USERS?.[key];
+  const user = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
+  if (!isOwner && !user) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    if (isOwner) {
+      if (typeof setAnti !== 'function' || typeof getAnti !== 'function') {
+        return res.json({ success: false, error: 'Not available' });
+      }
+      switch (action) {
+        case 'set_all': setAnti('gc', true); setAnti('dm', true); break;
+        case 'off_all': setAnti('gc', false); setAnti('dm', false); break;
+        case 'toggle_gc': setAnti('gc', !getAnti('gc')); break;
+        case 'toggle_dm': setAnti('dm', !getAnti('dm')); break;
+        default: return res.json({ success: false, error: 'Invalid' });
+      }
+      return res.json({ success: true, gc: getAnti('gc'), dm: getAnti('dm'), scope: 'global' });
+    }
+    const cfg = loadUserConfig(user.sessionId);
+    let gc = isTrue(cfg.ANTI_DELETE_GC);
+    let dm = isTrue(cfg.ANTI_DELETE_DM);
+    switch (action) {
+      case 'set_all': gc = true; dm = true; break;
+      case 'off_all': gc = false; dm = false; break;
+      case 'toggle_gc': gc = !gc; break;
+      case 'toggle_dm': dm = !dm; break;
+      default: return res.json({ success: false, error: 'Invalid' });
+    }
+    cfg.ANTI_DELETE_GC = gc ? 'true' : 'false';
+    cfg.ANTI_DELETE_DM = dm ? 'true' : 'false';
+    saveUserConfig(user.sessionId, cfg);
+    const instance = userMgr.BOT_INSTANCES.get(user.sessionId);
+    if (instance && instance.conn) {
+      if (!instance.conn._userConfig) instance.conn._userConfig = {};
+      instance.conn._userConfig.ANTI_DELETE_GC = cfg.ANTI_DELETE_GC;
+      instance.conn._userConfig.ANTI_DELETE_DM = cfg.ANTI_DELETE_DM;
+    }
+    res.json({ success: true, gc, dm, scope: 'user' });
+  } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+app.get("/api/antilink", async (req, res) => {
+  const userMgr = require('./user-manager');
+  const key = req.query.key;
+  if (!key) return res.status(401).json({ error: 'Unauthorized' });
+  const isOwner = !!global.DASHBOARD_USERS?.[key];
+  const user = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
+  if (!isOwner && !user) return res.status(401).json({ error: 'Unauthorized' });
+  try {
+    let cfg;
+    if (isOwner) {
+      cfg = await readConfigFromMongo();
+      if (!cfg) cfg = readLocalConfig();
+      if (!cfg) cfg = config._base || {};
+    } else {
+      cfg = loadUserConfig(user.sessionId);
+    }
+    res.json({
+      success: true,
+      enabled: isTrue(cfg.ANTI_LINK_ENABLED),
+      action: cfg.ANTI_LINK_ACTION || 'delete',
+      warnLimit: cfg.ANTI_LINK_WARN_LIMIT || '3',
+      whitelist: cfg.ANTI_LINK_WHITELIST || '',
+      whitelistEnabled: isTrue(cfg.ANTI_LINK_WHITELIST_ENABLED),
+      notify: isTrue(cfg.ANTI_LINK_NOTIFY),
+      skipAdmins: isTrue(cfg.ANTI_LINK_SKIP_ADMINS),
+      skipBot: isTrue(cfg.ANTI_LINK_SKIP_BOT),
+      scope: isOwner ? 'owner' : 'user'
+    });
+  } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+app.post("/api/antilink", async (req, res) => {
+  const userMgr = require('./user-manager');
+  const { key, enabled, action, warnLimit, whitelist, whitelistEnabled, notify, skipAdmins, skipBot } = req.body || {};
+  if (!key) return res.status(401).json({ error: 'Unauthorized' });
+  const isOwner = !!global.DASHBOARD_USERS?.[key];
+  const user = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
+  if (!isOwner && !user) return res.status(401).json({ error: 'Unauthorized' });
+  const patch = {
+    ANTI_LINK_ENABLED: enabled ? 'true' : 'false',
+    ANTI_LINK_ACTION: ['delete','warn','kick'].includes(action) ? action : 'delete',
+    ANTI_LINK_WARN_LIMIT: String(parseInt(warnLimit, 10) || 3),
+    ANTI_LINK_WHITELIST: String(whitelist || '').trim(),
+    ANTI_LINK_WHITELIST_ENABLED: whitelistEnabled !== false ? 'true' : 'false',
+    ANTI_LINK_NOTIFY: notify ? 'true' : 'false',
+    ANTI_LINK_SKIP_ADMINS: skipAdmins ? 'true' : 'false',
+    ANTI_LINK_SKIP_BOT: skipBot !== false ? 'true' : 'false'
+  };
+  try {
+    if (isOwner) {
+      await writeConfig(patch);
+      if (global.ownerConn) {
+        if (!global.ownerConn._userConfig) global.ownerConn._userConfig = {};
+        Object.assign(global.ownerConn._userConfig, patch);
+      }
+      return res.json({ success: true, scope: 'owner' });
+    }
+    const cur = loadUserConfig(user.sessionId);
+    const next = { ...cur, ...patch };
+    const ok = saveUserConfig(user.sessionId, next);
+    const instance = userMgr.BOT_INSTANCES.get(user.sessionId);
+    if (instance && instance.conn) {
+      if (!instance.conn._userConfig) instance.conn._userConfig = {};
+      Object.assign(instance.conn._userConfig, patch);
+    }
+    res.json({ success: ok, scope: 'user' });
+  } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+app.get('/api/admin/users', (req, res) => {
+  const userMgr = require('./user-manager');
+  const key = req.query.key;
+  if (!global.DASHBOARD_USERS?.[key]) return res.status(401).json({ error: 'Unauthorized' });
+  const users = Object.values(userMgr.USERS).map(u => {
+    const inst = userMgr.BOT_INSTANCES.get(u.sessionId);
+    return { phone: u.phone, name: u.name, createdAt: u.createdAt, botStatus: inst?.status || 'stopped', sessionId: u.sessionId, dashPassword: u.dashPassword };
+  });
+  res.json({ success: true, users });
+});
+
+app.post('/api/admin/remove-user', async (req, res) => {
+  try {
+    const userMgr = require('./user-manager');
+    const { key, phone } = req.body || {};
+    if (!global.DASHBOARD_USERS?.[key]) return res.status(401).json({ error: 'Unauthorized' });
+    if (!phone) return res.json({ success: false, error: 'Phone required' });
+    const result = await userMgr.removeUser(phone);
+    res.json({ success: true, ...result });
+  } catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+app.get("/api/owner/pairing", (req, res) => {
+  if (!global.DASHBOARD_USERS?.[req.query.key]) return res.status(401).json({ error: 'Unauthorized' });
+  res.json({
+    success: true,
+    connected: botStatus.connected,
+    pairing: ownerPairWanted,
+    number: botStatus.connected ? botStatus.user?.split(':')[0] : (ownerPairNumber || String(config.OWNER_NUMBER)),
+    pairingCode: botStatus.connected ? null : botStatus.pairingCode,
+    pairingError: botStatus.pairingError || null,
+    timeoutMin: PAIR_TIMEOUT_MIN
+  });
+});
+
+app.post("/api/owner/pair", async (req, res) => {
+  const { key, number } = req.body || {};
+  if (!global.DASHBOARD_USERS?.[key]) return res.status(401).json({ error: 'Unauthorized' });
+  try { await startOwnerPairing(number); res.json({ success: true }); }
+  catch (e) { res.json({ success: false, error: e.message }); }
+});
+
+app.post("/api/owner/pair/cancel", (req, res) => {
+  const { key } = req.body || {};
+  if (!global.DASHBOARD_USERS?.[key]) return res.status(401).json({ error: 'Unauthorized' });
+  endOwnerPairing('Cancelled');
+  res.json({ success: true });
+});
+
 app.get("/status", (req, res) => {
   const userMgr = require('./user-manager');
   const mongo = require('./lib/mongo');
   const uptime = Math.floor((Date.now() - BOT_START_TIME) / 1000);
   res.json({
     status: botStatus.connected ? "online" : "offline",
-    bot: config.BOT_NAME, owner: config.OWNER_NAME, version: "3.5.3",
+    bot: config.BOT_NAME, owner: config.OWNER_NAME, version: "3.5.0",
     user: botStatus.user, uptime, uptimeFormatted: formatUptime(uptime),
     startedAt: new Date(BOT_START_TIME).toISOString(),
     lastUpdate: botStatus.lastUpdate, domain: global.BOT_DOMAIN,
     database: { type: mongo.isConnected() ? 'mongodb' : 'file', connected: mongo.isConnected() },
     users: { total: Object.keys(userMgr.USERS).length, activeBots: userMgr.BOT_INSTANCES.size },
+    memory: {
+      used: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + " MB",
+      total: Math.round(process.memoryUsage().heapTotal / 1024 / 1024) + " MB",
+      rss: Math.round(process.memoryUsage().rss / 1024 / 1024) + " MB"
+    },
+    system: { platform: process.platform, node: process.version, cpu: os.cpus()[0]?.model || "Unknown", hostname: os.hostname() },
     timestamp: new Date().toISOString()
   });
 });
 
-app.listen(port, () => console.log(`🌐 Server running on http://localhost:${port}`));
-
-// ═══════════════════════════════════════════════════
-//  🚀 MAIN CONNECTION LOGIC
-// ═══════════════════════════════════════════════════
 async function connectToWA() {
   if (ownerConnecting) return;
   if (ownerConn && botStatus.connected) return;
   ownerConnecting = true;
-  console.log("Connecting to WhatsApp ⏳...");
+  console.log("Connecting ⏳...");
   if (!fs.existsSync(sessionsDir)) fs.mkdirSync(sessionsDir, { recursive: true });
   try {
     const { state, saveCreds } = await useMultiFileAuthState(sessionsDir);
@@ -1037,13 +1573,16 @@ async function connectToWA() {
       if (!ownerPairWanted || pairingRequested || conn.authState?.creds?.registered) return;
       pairingRequested = true;
       const num = ownerPairNumber;
-      if (!num) return;
+      if (!num) { botStatus.pairingError = 'Number not set'; return; }
       try {
         const code = await requestValidPairingCode(conn, num);
         botStatus.pairingCode = code;
         botStatus.pairingError = null;
+        console.log(`\n══════════════════════════════════════════\n🔢 PAIRING CODE for ${num}:  ${code}\n══════════════════════════════════════════\n`);
       } catch (e) {
         pairingRequested = false;
+        botStatus.pairingError = e.message;
+        console.log('❌ Pairing code error:', e.message);
       }
     };
 
@@ -1056,39 +1595,52 @@ async function connectToWA() {
         ownerConnecting = false;
         botStatus.connected = false;
         const statusCode = lastDisconnect?.error?.output?.statusCode;
+        const reason = lastDisconnect?.error?.output?.payload?.message || '';
+        console.log(`🔄 Closed — ${statusCode} ${reason}`);
         stopOwnerPresenceTimer();
         if (conn._noReconnect) return;
+        if (ownerPairWanted && statusCode !== 515 && statusCode !== DisconnectReason.restartRequired) {
+          endOwnerPairing(`Connection closed before linking (${statusCode})`);
+          return;
+        }
         if (statusCode === 401 || statusCode === DisconnectReason.loggedOut) {
+          console.log('🚪 Logged out — session deleted');
+          botStatus.pairingCode = null;
           await wipeOwnerSession();
           return;
         }
-        setTimeout(() => { ownerConn = null; connectToWA(); }, 10000);
+        if (statusCode === 440) { setTimeout(() => { ownerConn = null; connectToWA(); }, 5 * 60 * 1000); return; }
+        if (statusCode === 515 || statusCode === DisconnectReason.restartRequired) {
+          setTimeout(() => { ownerConn = null; connectToWA(); }, 2000);
+          return;
+        }
+        if ([402, 403, 500].includes(statusCode)) return;
+        setTimeout(() => { ownerConn = null; connectToWA(); }, 30000);
       } else if (connection === 'open') {
         ownerConnecting = false;
         botStatus.connected = true;
         botStatus.user = conn.user.id;
         botStatus.qr = null;
         botStatus.pairingCode = null;
+        botStatus.pairingError = null;
+        if (ownerPairTimer) { clearTimeout(ownerPairTimer); ownerPairTimer = null; }
         ownerPairWanted = false;
-        console.log('✅ Owner connected successfully!');
+        console.log('✅ Owner connected');
         ownerConn = conn;
         global.ownerConn = conn;
-        
         const mongoCfg = await readConfigFromMongo();
         conn._userConfig = { ...(config._base || {}), ...(mongoCfg || readLocalConfig() || {}) };
-        
+        console.log(`📋 Owner config loaded — AUTO_TYPING=${conn._userConfig.AUTO_TYPING} AUTO_RECORDING=${conn._userConfig.AUTO_RECORDING} ALWAYS_ONLINE=${conn._userConfig.ALWAYS_ONLINE}`);
         try { const events = require('./command'); events.loadPlugins(); } catch (e) {}
         attachConnHelpers(conn);
         setupBotCommands(conn, { isOwnerBot: true, userInfo: null });
-        
-        handleAutoJoin(conn, conn._userConfig).catch(e => {});
-        
-        setTimeout(() => { sendConnectedMessage(conn, true, null).catch(e => {}); }, 10000);
+        handleAutoJoin(conn, conn._userConfig).catch(e => console.log('❌ Auto-Join error:', e.message));
+        setTimeout(() => { sendConnectedMessage(conn, true, null).catch(e => {}); }, 15000);
         startOwnerPresenceTimer(conn);
 
         setTimeout(() => {
           const userMgr = require('./user-manager');
-          userMgr.restoreAllSessions(conn).catch(e => {});
+          userMgr.restoreAllSessions(conn).catch(e => console.error('Restore:', e.message));
         }, 8000);
       }
     });
@@ -1101,31 +1653,75 @@ async function connectToWA() {
     });
   } catch (e) {
     ownerConnecting = false;
-    setTimeout(() => { ownerConn = null; connectToWA(); }, 15000);
+    console.log('❌ connectToWA error:', e.message);
+    setTimeout(() => { ownerConn = null; connectToWA(); }, 30000);
   }
 }
 
+app.listen(port, () => console.log(`🌐 http://localhost:${port}`));
+
 (async () => {
   console.log(`🚀 ${config.BOT_NAME} starting...`);
-  try { require('./command').loadPlugins(); } catch (e) {}
-  
+  try { require('./command').loadPlugins(); } catch (e) { console.error('❌ Plugin load failed:', e.stack || e.message); }
   const mongo = require('./lib/mongo');
   const userMgr = require('./user-manager');
   try {
     const mongoConn = await mongo.connectMongo();
     if (mongoConn) {
+      console.log('✅ MongoDB ready');
+      const mongoCfg = await mongo.getConfig();
+      if (mongoCfg && Object.keys(mongoCfg).length > 0) {
+        const dir = path.dirname(CONFIG_PATH);
+        if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(CONFIG_PATH, JSON.stringify(mongoCfg, null, 2), 'utf8');
+        if (typeof config._reload === 'function') config._reload();
+      }
       await userMgr.loadUsers();
       userMgr.cleanupUnlinked().catch(() => {});
     }
-  } catch (e) {}
+  } catch (e) { console.log('❌ MongoDB error:', e.message); }
+
+  try {
+    await require('./lib/boostStore').ensureIndexes();
+    console.log('✅ Boost store ready');
+  } catch (e) { console.log('⚠️ Boost store init failed:', e.message); }
+
+  setInterval(() => {
+    try { require('./lib/boostManager').cleanupInactiveRequesters(); } catch (e) {}
+  }, 60 * 60 * 1000);
 
   const hasOwnerSession = await ensureOwnerSession();
   if (hasOwnerSession) {
-    setTimeout(() => { connectToWA().catch(e => {}); }, 5000);
+    setTimeout(() => { connectToWA().catch(e => console.log('❌ Initial connect failed:', e.message)); }, 8000);
   } else {
-    setTimeout(() => { userMgr.restoreAllSessions(null).catch(e => {}); }, 8000);
+    setTimeout(() => { userMgr.restoreAllSessions(null).catch(e => console.error('Restore:', e.message)); }, 8000);
   }
 })();
 
-process.on('uncaughtException', (err) => {});
-process.on('unhandledRejection', (reason) => {});
+let shuttingDown = false;
+async function gracefulShutdown(signal) {
+  if (shuttingDown) return;
+  shuttingDown = true;
+  console.log(`\n🔌 ${signal} received — closing...`);
+  try {
+    stopOwnerPresenceTimer();
+    if (global.ownerConn) { try { global.ownerConn.end(undefined); } catch (e) {} }
+    const m = require('./lib/mongo');
+    await m.closeMongo();
+  } catch (e) {}
+  setTimeout(() => process.exit(0), 1000);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+
+let lastNoise = 0;
+function logProcessError(tag, msg, stack) {
+  if (msg.includes('Bad MAC') || msg.includes('decrypt')) {
+    if (Date.now() - lastNoise < 20000) return;
+    lastNoise = Date.now();
+  }
+  console.log(`❌ ${tag}:`, msg, process.env.DEBUG_MSG !== 'false' && stack ? '\n' + String(stack).split('\n').slice(1, 4).join('\n') : '');
+}
+process.on('uncaughtException', (err) => logProcessError('Uncaught', String(err?.message || err), err?.stack));
+process.on('unhandledRejection', (reason) => logProcessError('Unhandled', String(reason?.message || reason || ''), reason?.stack));
