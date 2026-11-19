@@ -8,40 +8,52 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@400;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/shared.css">
 <script>const savedTheme = localStorage.getItem('theme') || 'light'; document.documentElement.setAttribute('data-theme', savedTheme);</script>
-<script>
-// ── Auth guard (hard check) ──
-(function() {
-  const urlKey = new URLSearchParams(window.location.search).get('key');
-  if (urlKey) return;
-  const savedKey = localStorage.getItem('qz_auth_key');
-  if (savedKey) {
-    window.location.replace('/boost?key=' + encodeURIComponent(savedKey));
-  } else {
-    window.location.replace('/login');
-  }
-})();
-</script>
 <style>
-.session-info{display:flex;align-items:center;justify-content:space-between;background:var(--surface2);padding:16px 18px;border-radius:var(--radius-sm);margin-bottom:0;border:1.5px solid var(--border);flex-wrap:wrap;gap:12px;backdrop-filter:var(--glass-blur)}
-.session-info span{font-family:var(--font-mono);font-size:0.88em;font-weight:700;color:var(--text-mid)}
-.dot{width:12px;height:12px;border-radius:50%;display:inline-block;background:var(--danger);box-shadow:0 0 10px var(--danger);animation:dotPulse 1.8s ease-in-out infinite}
-.dot.on{background:var(--accent);box-shadow:0 0 12px var(--accent)}
-@keyframes dotPulse{0%,100%{transform:scale(1);opacity:1}50%{transform:scale(1.25);opacity:0.7}}
-.boost-item{padding:16px 18px;background:var(--surface2);border-radius:var(--radius-sm);margin-bottom:12px;font-size:0.85em;border:1.5px solid var(--border);transition:all 0.35s cubic-bezier(0.2,0.9,0.3,1.2);backdrop-filter:blur(8px)}
-.boost-item:hover{border-color:var(--border-active);transform:translateY(-4px) scale(1.005);box-shadow:0 12px 30px var(--accent-glow);background:var(--surface)}
+/* Boost page specific CSS */
+.status-box{padding:20px;background:var(--surface);border-radius:var(--radius-sm);margin-top:20px;font-size:0.9em;display:none;line-height:1.6;border-left:5px solid var(--border);font-family:var(--font-mono);animation:popIn 0.5s cubic-bezier(0.2,0.9,0.3,1.2)}
+.status-box.ok{border-left-color:var(--accent);display:block;background:var(--accent-glow);color:var(--text)}
+.status-box.err{border-left-color:var(--danger);display:block;background:rgba(239,68,68,0.1);color:var(--text)}
+.status-icon{font-size:2em; margin-bottom:8px; display:block;}
+@keyframes popIn{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
+
+/* අර අපි හංගන Session box එකේ ස්ටයිල් */
+.session-info{display:flex;align-items:center;justify-content:space-between;background:var(--surface);padding:16px;border-radius:var(--radius-sm);margin-bottom:20px;border:1px solid var(--border);flex-wrap:wrap;gap:10px}
+.session-info span{font-family:var(--font-mono);font-size:0.9em;font-weight:700}
+.dot{width:12px;height:12px;border-radius:50%;display:inline-block;background:var(--danger);box-shadow:0 0 10px var(--danger)}
+.dot.on{background:var(--accent);box-shadow:0 0 10px var(--accent)}
+
+.boost-item{padding:16px;background:var(--surface);border-radius:var(--radius-sm);margin-bottom:12px;font-size:0.85em;border:1px solid var(--border);transition:all 0.3s}
+.boost-item:hover{border-color:var(--border-active);transform:translateY(-2px)}
 .badge{display:inline-block;padding:4px 10px;border-radius:6px;font-size:0.75em;font-weight:800;font-family:var(--font-mono)}
 .badge.active{background:var(--accent-glow);color:var(--accent);border:1px solid var(--accent)}
 .badge.reverted{background:rgba(239,68,68,0.1);color:var(--danger);border:1px solid var(--danger)}
-.status-box{padding:22px;background:var(--surface2);border-radius:var(--radius-sm);margin-top:20px;font-size:0.9em;display:none;line-height:1.7;border-left:5px solid var(--border);font-family:var(--font-mono);backdrop-filter:var(--glass-blur);animation:popIn 0.5s cubic-bezier(0.2,0.9,0.3,1.2)}
-.status-box.ok{border-left-color:var(--accent);display:block;background:var(--accent-glow);color:var(--text);box-shadow:0 0 30px var(--accent-glow)}
-.status-box.err{border-left-color:var(--danger);display:block;background:rgba(239,68,68,0.1);color:var(--text)}
-.status-icon{font-size:2.4em;margin-bottom:10px;display:block}
-@keyframes popIn{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
-.progress-container{width:100%;height:10px;background:var(--surface2);border-radius:10px;margin-top:16px;overflow:hidden;display:none;box-shadow:inset 0 2px 4px rgba(0,0,0,0.08)}
-.progress-bar{width:0%;height:100%;background:var(--gradient);border-radius:10px;box-shadow:0 0 15px var(--accent-glow-strong);animation:fillProgress 40s cubic-bezier(0.1,0.8,0.2,1) forwards;position:relative}
-.progress-bar::after{content:'';position:absolute;inset:0;background:linear-gradient(90deg,transparent,rgba(255,255,255,0.4),transparent);animation:shimmer 1.5s linear infinite}
-@keyframes shimmer{0%{transform:translateX(-100%)}100%{transform:translateX(100%)}}
-@keyframes fillProgress{0%{width:0%}10%{width:15%}30%{width:40%}60%{width:75%}90%{width:90%}100%{width:95%}}
+
+/* Loading Progress Bar */
+.progress-container {
+  width: 100%;
+  height: 8px;
+  background: var(--surface2);
+  border-radius: 10px;
+  margin-top: 15px;
+  overflow: hidden;
+  display: none;
+  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+}
+.progress-bar {
+  width: 0%;
+  height: 100%;
+  background: var(--gradient);
+  border-radius: 10px;
+  animation: fillProgress 40s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
+}
+@keyframes fillProgress {
+  0% { width: 0%; }
+  10% { width: 15%; }
+  30% { width: 40%; }
+  60% { width: 75%; }
+  90% { width: 90%; }
+  100% { width: 95%; }
+}
 </style>
 </head>
 <body>
@@ -49,7 +61,8 @@
 
 <div class="container" style="max-width:800px;position:relative;z-index:1">
   
-  <div class="header">
+  <!-- ✅ HIDDEN: Header / Nav Bar එක මෙතනින් හංගලා තියෙන්නේ -->
+  <div class="header" style="display: none;">
     <div class="brand">
       <div class="mini-logo">
         <svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
@@ -65,7 +78,8 @@
     </div>
   </div>
 
-  <div class="card" style="margin-bottom:20px">
+  <!-- ✅ HIDDEN: Session Selection Card එක මෙතනින් හංගලා තියෙන්නේ -->
+  <div class="card" style="display: none;">
     <div class="session-info" id="sessionInfo">
       <div style="display:flex;align-items:center;gap:10px">
         <div class="dot" id="statusDot"></div>
@@ -77,13 +91,15 @@
     </div>
   </div>
 
-  <div class="card">
+  <!-- BOOST FORMS (මේක තමයි ඔයාට පේන්න ඕන කොටස) -->
+  <div class="card" style="margin-top: 20px;">
     <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap" class="tabs-nav">
       <button class="tab-btn active" data-type="follow" onclick="switchTab('follow', this)">👥 Followers</button>
       <button class="tab-btn" data-type="react" onclick="switchTab('react', this)">❤️ Reactions</button>
       <button class="tab-btn" data-type="poll" onclick="switchTab('poll', this)">📊 Poll Votes</button>
     </div>
 
+    <!-- FOLLOW FORM -->
     <div id="tab-follow" class="tab-content active">
       <div class="field">
         <label>Channel Link</label>
@@ -94,6 +110,7 @@
       <div class="progress-container" id="progressFollow"><div class="progress-bar"></div></div>
     </div>
 
+    <!-- REACT FORM -->
     <div id="tab-react" class="tab-content">
       <div class="field">
         <label>Channel Post URL (Must include Post ID)</label>
@@ -107,6 +124,7 @@
       <div class="progress-container" id="progressReact"><div class="progress-bar"></div></div>
     </div>
 
+    <!-- POLL FORM -->
     <div id="tab-poll" class="tab-content">
       <div class="field">
         <label>Channel Poll Post URL (Must include Post ID)</label>
@@ -127,6 +145,7 @@
     </div>
   </div>
 
+  <!-- HISTORY -->
   <div class="card">
     <h3>Recent Boosts</h3>
     <div id="boostList" style="margin-top:15px;max-height:350px;overflow-y:auto;padding-right:5px">
@@ -138,25 +157,8 @@
 <div id="toast" class="toast"></div>
 
 <script>
-// ═══════════════════════════════════════════════════
-//  🔒 AUTH — extract key + fetch wrapper
-// ═══════════════════════════════════════════════════
-const AUTH_KEY = new URLSearchParams(window.location.search).get('key');
-if (!AUTH_KEY) {
-  window.location.replace('/login');
-}
-
-async function boostFetch(path, options = {}) {
-  const sep = path.includes('?') ? '&' : '?';
-  const url = path + sep + 'key=' + encodeURIComponent(AUTH_KEY);
-  const res = await fetch(url, options);
-  if (res.status === 401) {
-    localStorage.removeItem('qz_auth_key');
-    localStorage.removeItem('qz_auth_type');
-    window.location.replace('/login');
-    throw new Error('Session expired — please log in again');
-  }
-  return res;
+if (!window.location.search.includes('key=')) {
+    window.location.href = '/login';
 }
 
 let currentSessionId = null;
@@ -170,13 +172,13 @@ function showToast(msg, type='success') {
 
 async function loadSessions() {
   try {
-    const res = await boostFetch('/api/boost/sessions');
+    const res = await fetch('/api/boost/sessions');
     const data = await res.json();
     const select = document.getElementById('sessionSelect');
     
     if (!data.success || !data.sessions || data.sessions.length === 0) {
-      document.getElementById('sessionText').textContent = 'No bots found in database.';
-      document.getElementById('statusDot').className = 'dot';
+      if (document.getElementById('sessionText')) document.getElementById('sessionText').textContent = 'No bots found in database.';
+      if (document.getElementById('statusDot')) document.getElementById('statusDot').className = 'dot';
       select.innerHTML = '<option value="">-- No bots --</option>';
       document.getElementById('boostList').innerHTML = '<div style="color: var(--text-dim); font-size: 0.9em; text-align:center; padding: 20px 0;">No bots found. Deploy a bot first.</div>';
       return;
@@ -184,12 +186,14 @@ async function loadSessions() {
 
     const activeBots = data.sessions.filter(s => s.status === 'active');
     
-    if (activeBots.length === 0) {
-      document.getElementById('sessionText').textContent = 'Bots are offline/connecting. Please wait...';
-      document.getElementById('statusDot').className = 'dot';
-    } else {
-      document.getElementById('sessionText').textContent = `${activeBots.length} Bot(s) active & ready.`;
-      document.getElementById('statusDot').className = 'dot on';
+    if (document.getElementById('sessionText')) {
+      if (activeBots.length === 0) {
+        document.getElementById('sessionText').textContent = 'Bots are offline/connecting. Please wait...';
+        document.getElementById('statusDot').className = 'dot';
+      } else {
+        document.getElementById('sessionText').textContent = `${activeBots.length} Bot(s) active & ready.`;
+        document.getElementById('statusDot').className = 'dot on';
+      }
     }
     
     let options = '';
@@ -202,6 +206,7 @@ async function loadSessions() {
     });
     select.innerHTML = options;
 
+    // ඔටෝම පළවෙනි බොට්ව සිලෙක්ට් කරනවා
     if (!currentSessionId && activeBots.length > 0) {
       currentSessionId = activeBots[0].sessionId;
       select.value = currentSessionId;
@@ -259,7 +264,7 @@ async function submitBoost(type) {
       body.pollOption = document.getElementById('pollOption').value;
     }
 
-    const res = await boostFetch(url, {
+    const res = await fetch(url, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body)
@@ -300,7 +305,7 @@ async function loadBoosts() {
   const listEl = document.getElementById('boostList');
   
   try {
-    const res = await boostFetch(`/api/boost/list?requesterSessionId=${encodeURIComponent(currentSessionId)}`);
+    const res = await fetch(`/api/boost/list?requesterSessionId=${encodeURIComponent(currentSessionId)}`);
     const data = await res.json();
     
     if (!data.success || !data.boosts || data.boosts.length === 0) {
@@ -346,4 +351,4 @@ setInterval(loadSessions, 15000);
 <script src="/components.js"></script>
 <script>renderBottomNav('boost');</script>
 </body>
-                                                                                                                                                                                                                                                                                                                                                                                                                                                   </html>
+        </html>
