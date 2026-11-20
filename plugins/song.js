@@ -1,60 +1,70 @@
 const axios = require('axios');
 const yts = require('yt-search');
+const config = require('../config');
 const { cmd } = require('../command');
 
+const FIXO_API_URL = "https://fixo-api-t71c.onrender.com";
+const FIXO_API_KEY = config.FIXO_API_KEY;
+const NEWSLETTER_JID = "120363409660898486@newsletter";
+const NEWSLETTER_URL = "https://whatsapp.com/channel/120363409660898486";
+
+async function getVideoUrl(query) {
+    if (/youtube\.com|youtu\.be/i.test(query)) return { url: query, title: 'YouTube Audio' };
+    const search = await yts(query);
+    if (!search?.videos?.length) throw new Error("No results found.");
+    return { url: search.videos[0].url, title: search.videos[0].title };
+}
+
 cmd({
-    pattern: "audio",
-    alias: ["mp3", "song", "gana", "play", "ytmp3", "ytaudio", "playaudio", "music"],
-    desc: "Download YouTube Audio as MP3",
+    pattern: "song",
+    alias: ["yta", "ytmp3", "play"],
+    use: '.song <song name | youtube url>',
+    desc: "Download a song as audio",
     category: "download",
     react: "🎵",
     filename: __filename
-}, async (conn, mek, m, { from, reply, text }) => {
+}, async (conn, mek, m, { from, q, reply }) => {
+    if (!FIXO_API_KEY) return reply('❌ *API Key Error:*\n`config.env` is missing FIXO_API_KEY.');
+    const query = (q || '').trim();
+    if (!query) return reply('🎵 *Usage:* .song <song name or YouTube URL>');
+
     try {
-        if (!text) return reply("🎵 Example:\n.audio pasoori\n.audio https://youtu.be/xxx");
+        await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
+        const videoInfo = await getVideoUrl(query);
+        await reply(`🎵 *Downloading Audio...*\n\n📌 ${videoInfo.title}`);
 
-        let videoUrl, title, artist, duration, thumbnail, views;
-        const isUrl = /^https?:\/\/(www\.)?(youtube\.com|youtu\.be)/.test(text);
+        const apiUrl = `${FIXO_API_URL}/api/song?url=${encodeURIComponent(videoInfo.url)}&api_key=${FIXO_API_KEY}`;
+        
+        const res = await axios.get(apiUrl, {
+            responseType: 'arraybuffer',
+            timeout: 120000,
+            maxContentLength: 100 * 1024 * 1024
+        });
 
-        if (isUrl) {
-            videoUrl = text;
-            const search = await yts(text);
-            if (search?.videos?.length) {
-                const vid = search.videos[0];
-                title = vid.title; artist = vid.author?.name || 'Unknown'; duration = vid.timestamp; thumbnail = vid.thumbnail; views = vid.views;
-            } else { title = "YouTube Audio"; artist = "Unknown"; }
-        } else {
-            const search = await yts(text);
-            if (!search.videos.length) return reply("🎵 No audio found. Please try another song!");
-            const vid = search.videos[0];
-            videoUrl = vid.url; title = vid.title; artist = vid.author?.name || 'Unknown'; duration = vid.timestamp; thumbnail = vid.thumbnail; views = vid.views;
-        }
+        const buffer = Buffer.from(res.data, 'binary');
+        if (!buffer || buffer.length === 0) throw new Error("Empty audio buffer");
 
-        const caption = `
-╭────────────────────◇
-│  🎵 QUEEN ZARA MUSIC 🎵
-│  ✌︎㋡━━━━━━━━━✌︎㋡
-│  ✿ 🎶 Title: ${title.slice(0, 30)}...
-│  ✿ 👩‍🎤 Artist: ${artist}
-│  ✿ ⏱️ Duration: ${duration || 'Unknown'}
-│  ✿ 👁️ Views: ${views || 'N/A'}
-│  ✿ 📥 Processing...
-╰────────────────────○
-> 🦋 Powered by Queen Zara Mini
-        `;
+        const safeName = (videoInfo.title || 'audio').replace(/[^\w\s-]/g, '').trim() || 'audio';
 
-        await conn.sendMessage(from, { image: { url: thumbnail || 'https://i.ibb.co/CKz1Cm4h/Neon-Queen-Zara-Anime-Banner.png' }, caption: caption }, { quoted: mek });
+        await conn.sendMessage(from, {
+            audio: buffer,
+            mimetype: 'audio/mpeg',
+            fileName: `${safeName}.mp3`,
+            ptt: false,
+            contextInfo: {
+                forwardingScore: 999,
+                isForwarded: true,
+                forwardedNewsletterMessageInfo: {
+                    newsletterJid: NEWSLETTER_JID,
+                    newsletterName: "Fixo API Updates",
+                    serverMessageId: -1
+                }
+            }
+        }, { quoted: mek });
 
-        const apiUrl = `https://apis.davidcyriltech.my.id/download/ytmp3?url=${encodeURIComponent(videoUrl)}`;
-        const { data } = await axios.get(apiUrl, { timeout: 60000 });
-
-        const downloadUrl = data?.result?.download_url || data?.result?.downloadUrl || data?.result?.url || data?.url || data?.link || data?.result?.download?.url;
-        if (!downloadUrl) throw new Error('Could not retrieve download link.');
-
-        await conn.sendMessage(from, { audio: { url: downloadUrl }, mimetype: 'audio/mpeg', ptt: false }, { quoted: mek });
-
-    } catch (err) {
-        console.error('🎵 Audio Error:', err);
-        reply(`🎵 Audio download failed: ${err.message || 'Unknown error'}`);
+        await conn.sendMessage(from, { react: { text: '✅', key: mek.key } }).catch(() => {});
+    } catch (e) {
+        await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
+        return reply(`❌ *Error downloading song:*\n_${e.message}_`);
     }
 });
