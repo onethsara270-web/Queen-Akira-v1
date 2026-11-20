@@ -34,7 +34,7 @@ cmd({
     try {
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
 
-        const apiUrl = `https://fixo-api-production-7d421257.up.railway.app/api/base64?text=${encodeURIComponent(textToProcess)}&action=${action}&api_key=${FIXO_API_KEY}`;
+        const apiUrl = `https://fixo-api-t71c.onrender.com/api/base64?text=${encodeURIComponent(textToProcess)}&action=${action}&api_key=${FIXO_API_KEY}`;
         const res = await axios.get(apiUrl, { timeout: 20000, validateStatus: s => s < 500 });
         
         if (!res.data.success) {
