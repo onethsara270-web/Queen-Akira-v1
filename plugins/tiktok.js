@@ -31,7 +31,6 @@ cmd({
         
         const apiUrl = `${FIXO_API_URL}/api/tiktok?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
         
-        // validateStatus දැම්මම 500 Error එකක් ආවත් ක්‍රෑෂ් වෙන්නේ නෑ
         const { data } = await axios.get(apiUrl, { 
             timeout: 30000,
             validateStatus: () => true 
@@ -41,9 +40,21 @@ cmd({
             throw new Error(data.error || "Failed to extract video link.");
         }
 
-        await reply(`📥 *Downloading...*\n📌 ${data.title}`);
+        // title එක undefined නම් 'TikTok Video' කියලා පෙන්නන්න
+        const safeTitle = (data.title && data.title !== 'undefined') ? data.title : 'TikTok Video';
 
-        const videoRes = await axios.get(data.video_url, { responseType: 'arraybuffer', timeout: 60000 });
+        await reply(`📥 *Downloading...*\n📌 ${safeTitle}`);
+
+        // ⚠️ වීඩියෝ එක බාගන්නකොට Headers දෙනවා (මේකෙන් තමයි බ්ලොක් එක මගහැරෙන්නේ)
+        const videoRes = await axios.get(data.video_url, { 
+            responseType: 'arraybuffer', 
+            timeout: 60000,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+                'Referer': 'https://www.tiktok.com/'
+            }
+        });
+
         const buffer = Buffer.from(videoRes.data, 'binary');
 
         if (!buffer || buffer.length === 0) throw new Error("Empty video buffer.");
@@ -51,7 +62,7 @@ cmd({
         await conn.sendMessage(from, {
             video: buffer,
             mimetype: 'video/mp4',
-            caption: `✅ *TIKTOK VIDEO*\n\n📌 ${data.title}\n👤 ${data.author}\n\n⚡ *Powered by Queen Zara*\n📢 ${NEWSLETTER_URL}`,
+            caption: `✅ *TIKTOK VIDEO*\n\n📌 ${safeTitle}\n👤 ${data.author}\n\n⚡ *Powered by Queen Zara*\n📢 ${NEWSLETTER_URL}`,
             contextInfo: {
                 forwardingScore: 999,
                 isForwarded: true,
