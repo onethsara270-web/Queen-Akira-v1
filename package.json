@@ -58,7 +58,6 @@
     "sequelize": "^6.37.5",
     "sqlite3": "^5.1.7",
     "api-dylux": "1.8.5",
-    "@mrnima/tiktok-downloader": "1.0.0",
     "@mrnima/facebook-downloader": "1.0.0",
     "mrnima-moviedl": "1.0.0",
     "megajs": "^1.3.10",
