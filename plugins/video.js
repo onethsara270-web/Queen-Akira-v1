@@ -1,65 +1,92 @@
+const { cmd } = require('../command');
+const config = require('../config');
 const axios = require('axios');
 const yts = require('yt-search');
-const config = require('../config');
-const { cmd } = require('../command');
+const ffmpeg = require('fluent-ffmpeg');
+// ඔයාගේ package.json එකේ තියෙන path එක මෙතනින් ගන්නවා
+const ffmpegPath = require('@ffmpeg-installer/ffmpeg').path; 
+const fs = require('fs');
+const path = require('path');
 
-const FIXO_API_KEY = config.FIXO_API_KEY;
-const API_TIMEOUT = 180000;
+ffmpeg.setFfmpegPath(ffmpegPath);
+const tempDir = path.join(__dirname, '../temp');
+if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir, { recursive: true });
 
-async function getVideoUrl(query) {
-    if (/youtube\.com|youtu\.be/i.test(query)) {
-        return { url: query, title: 'YouTube Video' };
-    }
+async function searchVideo(query) {
     const search = await yts(query);
-    if (!search?.videos?.length) throw new Error("No results found.");
-    return { url: search.videos[0].url, title: search.videos[0].title };
+    if (!search.videos || search.videos.length === 0) throw new Error("🌸 No results found! 💕");
+    return search.videos[0];
+}
+
+async function trimVideo(inputPath, outputPath, start, duration) {
+    return new Promise((resolve, reject) => {
+        ffmpeg(inputPath).setStartTime(start).setDuration(duration).output(outputPath).on('end', () => resolve(outputPath)).on('error', reject).run();
+    });
 }
 
 cmd({
     pattern: "video",
-    alias: ["ytv", "ytmp4", "mp4"],
-    use: '.video <video name | youtube url>',
-    desc: "Download a video as MP4 via Fixo API",
+    alias: ["ytv", "video3", "video2", "video4"],
+    desc: "Download YouTube video",
     category: "download",
     react: "🎬",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
-
-    if (!FIXO_API_KEY) return reply('❌ *API Key Error:* config.env එකේ FIXO_API_KEY එක දාලා නෑ.');
-
-    const query = (q || '').trim();
-    if (!query) return reply('🎬 *Usage:* .video <video name or YouTube URL>');
-
     try {
-        await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
+        if (!q) return reply(`🎬 *Usage:* .video <name or link>\n✂️ *Trim:* .video <link> trim 00:00:10 00:00:30`);
 
-        const videoInfo = await getVideoUrl(query);
-        await reply(`🎬 *Downloading Video...*\n\n📌 ${videoInfo.title}\n⏳ මේකට ටිකක් වෙලා යන්න පුළුවන්...`);
-
-        const apiUrl = `https://fixo-api-production-7d421257.up.railway.app/api/video?url=${encodeURIComponent(videoInfo.url)}&api_key=${FIXO_API_KEY}`;
+        let args = q.split(' ');
+        let query = q;
+        let trimStart = null; let trimDuration = null;
         
-        const dl = await axios.get(apiUrl, {
-            responseType: 'arraybuffer',
-            timeout: API_TIMEOUT,
-            maxContentLength: 200 * 1024 * 1024
-        });
+        if (args.includes("trim") && args.length > 3) {
+            const trimIndex = args.indexOf("trim");
+            trimStart = args[trimIndex + 1];
+            trimDuration = args[trimIndex + 2];
+            query = args.slice(0, trimIndex).join(" ");
+        }
 
-        const buffer = Buffer.from(dl.data, 'binary');
-        if (!buffer || buffer.length === 0) throw new Error("Empty video buffer");
+        await conn.sendMessage(from, { react: { text: "⏳", key: mek.key } });
 
-        const safeName = (videoInfo.title || 'video').replace(/[^\w\s-]/g, '').trim() || 'video';
+        let videoUrl, videoTitle, videoThumb;
+        if (query.includes('youtube.com') || query.includes('youtu.be')) {
+            videoUrl = query;
+            videoTitle = "YouTube Video";
+        } else {
+            const res = await searchVideo(query);
+            videoUrl = res.url; videoTitle = res.title; videoThumb = res.thumbnail;
+        }
 
-        await conn.sendMessage(from, {
-            video: buffer,
-            mimetype: 'video/mp4',
-            fileName: `${safeName}.mp4`
-        }, { quoted: mek });
+        if (videoThumb) await conn.sendMessage(from, { image: { url: videoThumb }, caption: `🎬 *Downloading:* ${videoTitle}...` }, { quoted: mek });
 
-        await conn.sendMessage(from, { react: { text: '✅', key: mek.key } }).catch(() => {});
+        const api = `https://arslan-apis-v2.vercel.app/download/ytmp4?url=${encodeURIComponent(videoUrl)}`;
+        const { data } = await axios.get(api, { timeout: 60000 });
+        const downloadUrl = data?.result?.download?.url;
 
-    } catch (e) {
-        console.error('[video] Error:', e.message);
-        await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
-        return reply(`❌ *Error downloading video:*\n_${e.message}_`);
+        if (!downloadUrl) throw new Error("🌸 API failed to provide link!");
+
+        if (trimStart && trimDuration) {
+            await conn.sendMessage(from, { react: { text: "✂️", key: mek.key } });
+            const tempInput = path.join(tempDir, `in_${Date.now()}.mp4`);
+            const tempOutput = path.join(tempDir, `out_${Date.now()}.mp4`);
+            
+            const writer = fs.createWriteStream(tempInput);
+            const response = await axios({ url: downloadUrl, method: 'GET', responseType: 'stream' });
+            response.data.pipe(writer);
+            await new Promise((resolve, reject) => { writer.on('finish', resolve); writer.on('error', reject); });
+            
+            await trimVideo(tempInput, tempOutput, trimStart, trimDuration);
+            
+            await conn.sendMessage(from, { video: { url: tempOutput }, mimetype: 'video/mp4', caption: `✂️ *Trimmed Video*\n${videoTitle}` }, { quoted: mek });
+            fs.unlinkSync(tempInput); fs.unlinkSync(tempOutput);
+        } else {
+            await conn.sendMessage(from, { video: { url: downloadUrl }, mimetype: 'video/mp4', caption: `🎬 *${videoTitle}*\n\n👑 Powered by Queen Zara Mini` }, { quoted: mek });
+        }
+
+        await conn.sendMessage(from, { react: { text: "💖", key: mek.key } });
+
+    } catch (err) {
+        console.error('🌸 Video Error:', err);
+        reply(`❌ Error: ${err.message}`);
     }
 });
