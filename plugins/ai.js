@@ -23,7 +23,7 @@ cmd({
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
         await reply(`🎨 *Generating AI image for:*\n"${q}"\n\n⏳ This might take a few seconds...`);
 
-        const apiUrl = `https://fixo-api-p15j.onrender.com/api/ai-image?prompt=${encodeURIComponent(q)}&api_key=${FIXO_API_KEY}`;
+        const apiUrl = `https://fixo-api-t71c.onrender.com/api/ai-image?prompt=${encodeURIComponent(q)}&api_key=${FIXO_API_KEY}`;
         
         const res = await axios.get(apiUrl, {
             responseType: 'arraybuffer',
