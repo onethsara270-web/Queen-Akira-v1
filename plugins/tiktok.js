@@ -1,8 +1,9 @@
+// plugins/tiktok.js
 const axios = require('axios');
 const config = require('../config');
 const { cmd } = require('../command');
 
-const FIXO_API_URL = "https://fixo-api-t71c.onrender.com";
+const FIXO_API_URL = "https://fixo-api-t71c.onrender.com"; // ඔයාගේ ලින්ක් එක
 const FIXO_API_KEY = config.FIXO_API_KEY;
 const NEWSLETTER_JID = "120363409660898486@newsletter";
 const NEWSLETTER_URL = "https://whatsapp.com/channel/120363409660898486";
@@ -29,14 +30,23 @@ cmd({
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
         
         const apiUrl = `${FIXO_API_URL}/api/tiktok?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
-        const { data } = await axios.get(apiUrl, { timeout: 30000 });
+        
+        // validateStatus දැම්මම 500 Error එකක් ආවත් ක්‍රෑෂ් වෙන්නේ නෑ
+        const { data } = await axios.get(apiUrl, { 
+            timeout: 30000,
+            validateStatus: () => true 
+        });
 
-        if (!data.success || !data.video_url) throw new Error(data.error || "Failed to get video link.");
+        if (!data.success || !data.video_url) {
+            throw new Error(data.error || "Failed to extract video link.");
+        }
 
         await reply(`📥 *Downloading...*\n📌 ${data.title}`);
 
         const videoRes = await axios.get(data.video_url, { responseType: 'arraybuffer', timeout: 60000 });
         const buffer = Buffer.from(videoRes.data, 'binary');
+
+        if (!buffer || buffer.length === 0) throw new Error("Empty video buffer.");
 
         await conn.sendMessage(from, {
             video: buffer,
