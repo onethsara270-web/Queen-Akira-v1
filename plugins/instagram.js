@@ -1,42 +1,59 @@
-const { igdl } = require('ruhend-scraper');
+const axios = require('axios');
+const config = require('../config');
 const { cmd } = require('../command');
+
+const FIXO_API_URL = "https://fixo-api-t71c.onrender.com";
+const FIXO_API_KEY = config.FIXO_API_KEY;
+const NEWSLETTER_JID = "120363409660898486@newsletter";
+const NEWSLETTER_URL = "https://whatsapp.com/channel/120363409660898486";
+
+function pickUrl(s = '') {
+    const m = String(s).match(/https?:\/\/\S+/i);
+    return m ? m[0] : '';
+}
 
 cmd({
     pattern: "ig",
-    alias: ["instagram", "igdl"],
-    use: '.ig <link>',
-    desc: "Download Instagram videos/images",
+    alias: ["insta", "igdl", "reels"],
+    use: '.ig <url>',
+    desc: "Download Instagram Video",
     category: "download",
     react: "📸",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
-    if (!q || !q.includes('instagram.com')) {
-        return reply('📸 *Instagram Downloader*\n\nUsage:\n.ig <instagram post link>');
-    }
+    if (!FIXO_API_KEY) return reply('❌ *API Key Error:*\n`config.env` is missing FIXO_API_KEY.');
+    const url = pickUrl(q || '');
+    if (!url) return reply('❌ *Please provide an Instagram URL.*');
 
     try {
-        await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } });
-        
-        const downloadData = await igdl(q.trim());
-        if (!downloadData || !downloadData.data || downloadData.data.length === 0) {
-            return reply('❌ No media found at the provided link.');
-        }
+        await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
+        await reply(`📥 *Downloading Instagram Video...*\n⏳ Please wait...`);
 
-        const items = downloadData.data;
-        for (const media of items) {
-            const isVideo = media.type === 'video' || media.url.match(/\.(mp4|mov|avi|mkv)$/i);
-            
-            if (isVideo) {
-                await conn.sendMessage(from, { video: { url: media.url }, caption: '📸 *Instagram Video*' }, { quoted: mek });
-            } else {
-                await conn.sendMessage(from, { image: { url: media.url }, caption: '📸 *Instagram Image*' }, { quoted: mek });
+        const apiUrl = `${FIXO_API_URL}/api/instagram?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
+        
+        const res = await axios.get(apiUrl, { responseType: 'arraybuffer', timeout: 120000 });
+        const buffer = Buffer.from(res.data, 'binary');
+        
+        if (!buffer || buffer.length === 0) throw new Error("Empty video buffer.");
+
+        await conn.sendMessage(from, {
+            video: buffer,
+            mimetype: 'video/mp4',
+            caption: `✅ *INSTAGRAM VIDEO*\n\n⚡ *Powered by Queen Zara*\n📢 ${NEWSLETTER_URL}`,
+            contextInfo: {
+                forwardingScore: 999,
+                isForwarded: true,
+                forwardedNewsletterMessageInfo: {
+                    newsletterJid: NEWSLETTER_JID,
+                    newsletterName: "Fixo API Updates",
+                    serverMessageId: -1
+                }
             }
-            await new Promise(r => setTimeout(r, 1500)); // Small delay between multiple items
-        }
+        }, { quoted: mek });
 
         await conn.sendMessage(from, { react: { text: '✅', key: mek.key } }).catch(() => {});
-    } catch (err) {
-        console.error('IG error:', err.message);
-        reply('❌ Failed to download Instagram media. Please make sure the link is public.');
+    } catch (e) {
+        await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
+        return reply(`❌ *Error downloading Instagram video:*\n_${e.message}_`);
     }
 });
