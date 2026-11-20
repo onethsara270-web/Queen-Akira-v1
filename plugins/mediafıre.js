@@ -32,7 +32,7 @@ cmd({
         await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
         await reply(`📥 *Downloading file from MediaFire...*\n⏳ මේකට ටිකක් වෙලා යන්න පුළුවන්...`);
 
-        const apiUrl = `https://fixo-api-production-7d421257.up.railway.app/api/mediafire?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
+        const apiUrl = `https://fixo-api-t71c.onrender.com/api/mediafire?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
         
         const res = await axios.get(apiUrl, {
             responseType: 'arraybuffer',
