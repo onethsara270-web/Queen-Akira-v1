@@ -1,53 +1,59 @@
 const axios = require('axios');
+const config = require('../config');
 const { cmd } = require('../command');
+
+const FIXO_API_URL = "https://fixo-api-t71c.onrender.com";
+const FIXO_API_KEY = config.FIXO_API_KEY;
+const NEWSLETTER_JID = "120363409660898486@newsletter";
+const NEWSLETTER_URL = "https://whatsapp.com/channel/120363409660898486";
+
+function pickUrl(s = '') {
+    const m = String(s).match(/https?:\/\/\S+/i);
+    return m ? m[0] : '';
+}
 
 cmd({
     pattern: "fb",
     alias: ["facebook", "fbdl"],
-    use: '.fb <link>',
-    desc: "Download Facebook videos",
+    use: '.fb <url>',
+    desc: "Download Facebook Video",
     category: "download",
     react: "📘",
     filename: __filename
 }, async (conn, mek, m, { from, q, reply }) => {
-    if (!q) return reply('📘 *Facebook Downloader*\n\nUsage:\n.fb <facebook video link>');
-    
-    const url = q.trim();
-    if (!/facebook\.com|fb\.watch/i.test(url)) {
-        return reply('❌ Invalid Facebook link.\nPlease send a valid Facebook video URL.');
-    }
+    if (!FIXO_API_KEY) return reply('❌ *API Key Error:*\n`config.env` is missing FIXO_API_KEY.');
+    const url = pickUrl(q || '');
+    if (!url) return reply('❌ *Please provide a Facebook URL.*');
 
     try {
-        await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } });
+        await conn.sendMessage(from, { react: { text: '⏳', key: mek.key } }).catch(() => {});
+        await reply(`📥 *Downloading Facebook Video...*\n⏳ Please wait...`);
+
+        const apiUrl = `${FIXO_API_URL}/api/facebook?url=${encodeURIComponent(url)}&api_key=${FIXO_API_KEY}`;
         
-        const apiUrl = `https://gtech-api-xtp1.onrender.com/api/download/fb?url=${encodeURIComponent(url)}&apikey=APIKEY`;
-        const res = await axios.get(apiUrl, { timeout: 60000 });
-        const videos = res?.data?.data?.data;
+        const res = await axios.get(apiUrl, { responseType: 'arraybuffer', timeout: 120000 });
+        const buffer = Buffer.from(res.data, 'binary');
+        
+        if (!buffer || buffer.length === 0) throw new Error("Empty video buffer.");
 
-        if (!res?.data?.status || !Array.isArray(videos) || !videos.length) {
-            throw new Error('No downloadable video found');
-        }
-
-        // Sort to get the highest quality
-        const sorted = videos.sort((a, b) => {
-            const qa = parseInt(a.resolution, 10) || 0;
-            const qb = parseInt(b.resolution, 10) || 0;
-            return qb - qa;
-        });
-
-        const selected = sorted[0];
-        const videoUrl = selected.url.startsWith('http') ? selected.url : `https://gtech-api-xtp1.onrender.com${selected.url}`;
-        const caption = `📘 *Facebook Downloader*\n🎞 Quality: *${selected.resolution || 'Unknown'}*\n\n> *_Downloaded by Queen Zara Mini_*`;
-
-        await conn.sendMessage(from, { 
-            video: { url: videoUrl }, 
-            mimetype: 'video/mp4', 
-            caption 
+        await conn.sendMessage(from, {
+            video: buffer,
+            mimetype: 'video/mp4',
+            caption: `✅ *FACEBOOK VIDEO*\n\n⚡ *Powered by Queen Zara*\n📢 ${NEWSLETTER_URL}`,
+            contextInfo: {
+                forwardingScore: 999,
+                isForwarded: true,
+                forwardedNewsletterMessageInfo: {
+                    newsletterJid: NEWSLETTER_JID,
+                    newsletterName: "Fixo API Updates",
+                    serverMessageId: -1
+                }
+            }
         }, { quoted: mek });
 
         await conn.sendMessage(from, { react: { text: '✅', key: mek.key } }).catch(() => {});
-    } catch (err) {
-        console.error('Facebook error:', err.message);
-        reply('❌ Failed to download Facebook video. Please try again later.');
+    } catch (e) {
+        await conn.sendMessage(from, { react: { text: '❌', key: mek.key } }).catch(() => {});
+        return reply(`❌ *Error downloading Facebook video:*\n_${e.message}_`);
     }
 });
