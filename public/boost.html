@@ -268,7 +268,8 @@ async function loadBoosts() {
   const listEl = document.getElementById('boostList');
   
   try {
-    const res = await fetch(`/api/boost/list?requesterSessionId=${encodeURIComponent(currentSessionId)}`);
+    // ✅ FIXED: මෙතන &key= එකතු කරලා තියෙනවා
+    const res = await fetch(`/api/boost/list?requesterSessionId=${encodeURIComponent(currentSessionId)}&key=${encodeURIComponent(dashKey)}`);
     const data = await res.json();
     
     if (!data.success || !data.boosts || data.boosts.length === 0) {
