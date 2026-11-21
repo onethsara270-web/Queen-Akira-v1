@@ -152,6 +152,7 @@ cmd({
     if (!inst) continue;
 
     if (inst.status === 'pairing_code_ready' && inst.pairingCode) {
+      // ✅ FIXED: මෙතන domain එක https://queen-zara.cc.cd ලෙස වෙනස් කළා
       return pairReply(
         `🔗 *PAIRING CODE READY* ✅\n\n` +
         `📱 Number: *+${phone}*\n` +
@@ -162,7 +163,7 @@ cmd({
         `3. Link with phone number\n` +
         `4. Enter: *${formatCode(inst.pairingCode)}*\n\n` +
         `🔑 *Password:* \`${user.dashPassword}\`\n` +
-        `🌐 *Login:* ${global.BOT_DOMAIN || 'server'}/login`
+        `🌐 *Login:* https://queen-zara.cc.cd/login`
       );
     }
 
