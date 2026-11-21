@@ -39,12 +39,10 @@
 
 <div class="container" style="max-width:800px;position:relative;z-index:1">
   
-  <!-- ✅ HIDDEN: Session Selector (පෞද්ගලිකත්වය රැක ගන්න මේක සම්පූර්ණයෙන්ම හංගලා තියෙන්නේ) -->
   <select id="sessionSelect" style="display: none;" onchange="onSessionChange()">
     <option value="">-- No bots --</option>
   </select>
 
-  <!-- ✅ යූසර්ට පේන්න තමන්ගේ බොට් එකේ තත්වය විතරක් පෙන්නන බොක්ස් එක -->
   <div class="privacy-status" id="statusContainer" style="display: none;">
     <div style="display:flex;align-items:center;gap:10px">
       <div class="dot" id="statusDot"></div>
@@ -136,7 +134,6 @@ function showToast(msg, type='success') {
 
 async function loadSessions() {
   try {
-    // ✅ key එක API එකට යවනවා, එතකොට අපේ බොට් එක විතරයි එවන්නේ
     const res = await fetch('/api/boost/sessions?key=' + dashKey);
     const data = await res.json();
     const select = document.getElementById('sessionSelect');
@@ -151,7 +148,7 @@ async function loadSessions() {
       return;
     }
 
-    const bot = data.sessions[0]; // Backend එකෙන් එවන්නේ එක බොට් එකයි
+    const bot = data.sessions[0];
     
     statusContainer.style.display = 'flex';
     if (bot.status === 'active') {
@@ -192,7 +189,6 @@ async function submitBoost(type) {
     return;
   }
 
-  // බොට් එක active ද (Online ද) බලනවා
   const selectedText = document.getElementById('sessionText').textContent;
   if (!selectedText.includes('Online')) {
     showToast('Your bot is offline. Please wait until it connects!', 'error');
@@ -214,7 +210,8 @@ async function submitBoost(type) {
   progressBar.firstElementChild.style.animation = 'fillProgress 40s cubic-bezier(0.1, 0.8, 0.2, 1) forwards';
 
   try {
-    let url = `/api/boost/${type}`;
+    // ✅ FIXED: POST request එකටත් key එක එකතු කළා
+    let url = `/api/boost/${type}?key=${encodeURIComponent(dashKey)}`;
     let body = { requesterSessionId: currentSessionId };
 
     if (type === 'follow') {
@@ -268,7 +265,6 @@ async function loadBoosts() {
   const listEl = document.getElementById('boostList');
   
   try {
-    // ✅ FIXED: මෙතන &key= එකතු කරලා තියෙනවා
     const res = await fetch(`/api/boost/list?requesterSessionId=${encodeURIComponent(currentSessionId)}&key=${encodeURIComponent(dashKey)}`);
     const data = await res.json();
     
