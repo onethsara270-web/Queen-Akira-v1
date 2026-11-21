@@ -6,6 +6,7 @@ const express = require('express');
 const boostManager = require('../lib/boostManager');
 const boostStore = require('../lib/boostStore');
 const userMgr = require('../user-manager');
+const config = require('../config');
 
 module.exports = function createBoostRouter() {
   const router = express.Router();
@@ -13,22 +14,37 @@ module.exports = function createBoostRouter() {
   router.get('/sessions', (req, res) => {
     try {
       const list = [];
-      
-      // 1. Owner Bot
-      if (global.ownerConn && global.ownerConn.user) {
-        list.push({ sessionId: '__owner__', phone: String(global.ownerConn.user.id).split(':')[0], status: 'active' });
-      } else {
-        list.push({ sessionId: '__owner__', phone: 'Owner Bot', status: 'offline' });
+      const key = req.query.key; // URL එකෙන් එන dashboard key එක ගන්නවා
+
+      // 1. අදාළ යූසර්ගේ බොට් එක විතරක් හොයාගන්නවා
+      let currentUser = null;
+      if (key) {
+        currentUser = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
       }
 
-      // 2. User Bots (ඔෆ්ලයින් උනත් ලිස්ට් එකට ගන්නවා)
-      for (const user of Object.values(userMgr.USERS)) {
-        const inst = userMgr.BOT_INSTANCES.get(user.sessionId);
+      if (currentUser) {
+        const inst = userMgr.BOT_INSTANCES.get(currentUser.sessionId);
         list.push({
-          sessionId: user.sessionId,
-          phone: user.phone,
-          status: inst?.status || 'offline' // active, connecting, offline
+          sessionId: currentUser.sessionId,
+          phone: currentUser.phone,
+          status: inst?.status || 'offline'
         });
+      } 
+      // ඔව්නර් (Owner) ලොග් වුනොත් විතරක් Owner Bot එක පෙන්නන්න
+      else if (key && (String(key) === String(config.DASHBOARD_PASSWORD) || String(key) === 'fixo123')) {
+        if (global.ownerConn && global.ownerConn.user) {
+          list.push({ 
+            sessionId: '__owner__', 
+            phone: String(global.ownerConn.user.id).split(':')[0], 
+            status: 'active' 
+          });
+        } else {
+          list.push({ 
+            sessionId: '__owner__', 
+            phone: 'Owner Bot', 
+            status: 'offline' 
+          });
+        }
       }
 
       res.json({ success: true, sessions: list });
