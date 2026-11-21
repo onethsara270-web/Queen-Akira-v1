@@ -14,9 +14,8 @@ module.exports = function createBoostRouter() {
   router.get('/sessions', (req, res) => {
     try {
       const list = [];
-      const key = req.query.key; // URL එකෙන් එන dashboard key එක ගන්නවා
+      const key = req.query.key;
 
-      // 1. අදාළ යූසර්ගේ බොට් එක විතරක් හොයාගන්නවා
       let currentUser = null;
       if (key) {
         currentUser = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
@@ -30,33 +29,25 @@ module.exports = function createBoostRouter() {
           status: inst?.status || 'offline'
         });
       } 
-      // ඔව්නර් (Owner) ලොග් වුනොත් විතරක් Owner Bot එක පෙන්නන්න
       else if (key && (String(key) === String(config.DASHBOARD_PASSWORD) || String(key) === 'fixo123')) {
         if (global.ownerConn && global.ownerConn.user) {
-          list.push({ 
-            sessionId: '__owner__', 
-            phone: String(global.ownerConn.user.id).split(':')[0], 
-            status: 'active' 
-          });
+          list.push({ sessionId: '__owner__', phone: String(global.ownerConn.user.id).split(':')[0], status: 'active' });
         } else {
-          list.push({ 
-            sessionId: '__owner__', 
-            phone: 'Owner Bot', 
-            status: 'offline' 
-          });
+          list.push({ sessionId: '__owner__', phone: 'Owner Bot', status: 'offline' });
         }
       }
 
       res.json({ success: true, sessions: list });
-    } catch (e) { 
-      res.status(500).json({ success: false, error: e.message }); 
-    }
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
   });
 
   router.post('/react', async (req, res) => {
     try {
       const { requesterSessionId, channelLink, postId, emoji } = req.body || {};
+      const key = req.query.key;
+      if (!key) return res.status(401).json({ success: false, error: 'Unauthorized — key missing' });
       if (!requesterSessionId) return res.status(400).json({ success: false, error: 'requesterSessionId required' });
+      
       const r = await boostManager.reactBoost({ requesterSessionId, channelLink, postId, emoji });
       res.json({ success: true, ...r });
     } catch (e) { res.status(400).json({ success: false, error: e.message }); }
@@ -65,7 +56,10 @@ module.exports = function createBoostRouter() {
   router.post('/poll', async (req, res) => {
     try {
       const { requesterSessionId, channelLink, postId, pollOption } = req.body || {};
+      const key = req.query.key;
+      if (!key) return res.status(401).json({ success: false, error: 'Unauthorized — key missing' });
       if (!requesterSessionId) return res.status(400).json({ success: false, error: 'requesterSessionId required' });
+      
       const r = await boostManager.pollBoost({ requesterSessionId, channelLink, postId, pollOption });
       res.json({ success: true, ...r });
     } catch (e) { res.status(400).json({ success: false, error: e.message }); }
@@ -74,7 +68,10 @@ module.exports = function createBoostRouter() {
   router.post('/follow', async (req, res) => {
     try {
       const { requesterSessionId, channelLink } = req.body || {};
+      const key = req.query.key;
+      if (!key) return res.status(401).json({ success: false, error: 'Unauthorized — key missing' });
       if (!requesterSessionId) return res.status(400).json({ success: false, error: 'requesterSessionId required' });
+      
       const r = await boostManager.followBoost({ requesterSessionId, channelLink });
       res.json({ success: true, ...r });
     } catch (e) { res.status(400).json({ success: false, error: e.message }); }
@@ -89,7 +86,6 @@ module.exports = function createBoostRouter() {
     } catch (e) { res.status(400).json({ success: false, error: e.message }); }
   });
 
-  // ✅ FIXED: මෙතන Key එක චෙක් කරනවා
   router.get('/list', async (req, res) => {
     try {
       const key = req.query.key;
@@ -115,9 +111,7 @@ module.exports = function createBoostRouter() {
 
       const list = await boostStore.list({ requesterSessionId: requesterSessionId, limit: 50 });
       res.json({ success: true, boosts: list });
-    } catch (e) { 
-      res.status(500).json({ success: false, error: e.message }); 
-    }
+    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
   });
 
   return router;
