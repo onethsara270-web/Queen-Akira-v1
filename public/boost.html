@@ -16,9 +16,9 @@
 .status-icon{font-size:2em; margin-bottom:8px; display:block;}
 @keyframes popIn{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
 
-/* අර අපි හංගන Session box එකේ ස්ටයිල් */
-.session-info{display:flex;align-items:center;justify-content:space-between;background:var(--surface);padding:16px;border-radius:var(--radius-sm);margin-bottom:20px;border:1px solid var(--border);flex-wrap:wrap;gap:10px}
-.session-info span{font-family:var(--font-mono);font-size:0.9em;font-weight:700}
+/* Privacy Status Box */
+.privacy-status{display:flex;align-items:center;justify-content:space-between;background:var(--surface);padding:16px;border-radius:var(--radius-sm);margin-bottom:20px;border:1px solid var(--border);flex-wrap:wrap;gap:10px}
+.privacy-status span{font-family:var(--font-mono);font-size:0.9em;font-weight:700}
 .dot{width:12px;height:12px;border-radius:50%;display:inline-block;background:var(--danger);box-shadow:0 0 10px var(--danger)}
 .dot.on{background:var(--accent);box-shadow:0 0 10px var(--accent)}
 
@@ -29,31 +29,9 @@
 .badge.reverted{background:rgba(239,68,68,0.1);color:var(--danger);border:1px solid var(--danger)}
 
 /* Loading Progress Bar */
-.progress-container {
-  width: 100%;
-  height: 8px;
-  background: var(--surface2);
-  border-radius: 10px;
-  margin-top: 15px;
-  overflow: hidden;
-  display: none;
-  box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
-}
-.progress-bar {
-  width: 0%;
-  height: 100%;
-  background: var(--gradient);
-  border-radius: 10px;
-  animation: fillProgress 40s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;
-}
-@keyframes fillProgress {
-  0% { width: 0%; }
-  10% { width: 15%; }
-  30% { width: 40%; }
-  60% { width: 75%; }
-  90% { width: 90%; }
-  100% { width: 95%; }
-}
+.progress-container {width: 100%;height: 8px;background: var(--surface2);border-radius: 10px;margin-top: 15px;overflow: hidden;display: none;box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);}
+.progress-bar {width: 0%;height: 100%;background: var(--gradient);border-radius: 10px;animation: fillProgress 40s cubic-bezier(0.1, 0.8, 0.2, 1) forwards;}
+@keyframes fillProgress {0% { width: 0%; }10% { width: 15%; }30% { width: 40%; }60% { width: 75%; }90% { width: 90%; }100% { width: 95%; }}
 </style>
 </head>
 <body>
@@ -61,37 +39,20 @@
 
 <div class="container" style="max-width:800px;position:relative;z-index:1">
   
-  <!-- ✅ HIDDEN: Header / Nav Bar එක මෙතනින් හංගලා තියෙන්නේ -->
-  <div class="header" style="display: none;">
-    <div class="brand">
-      <div class="mini-logo">
-        <svg class="icon" viewBox="0 0 24 24"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="m12 15-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
-      </div>
-      <div style="font-size:1.2em;font-weight:800;color:var(--text);font-family:var(--font-display)">Boost Center</div>
-    </div>
-    <div class="nav">
-      <a href="/dashboard?key={{KEY}}">Dashboard</a>
-      <a href="/settings?key={{KEY}}">Settings</a>
-      <a href="/boost?key={{KEY}}" class="active">Boost</a>
-      <a href="/login">Logout</a>
-      <button class="theme-btn" onclick="toggleTheme()"><svg class="icon sun-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg><svg class="icon moon-icon" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg></button>
+  <!-- ✅ HIDDEN: Session Selector (පෞද්ගලිකත්වය රැක ගන්න මේක සම්පූර්ණයෙන්ම හංගලා තියෙන්නේ) -->
+  <select id="sessionSelect" style="display: none;" onchange="onSessionChange()">
+    <option value="">-- No bots --</option>
+  </select>
+
+  <!-- ✅ යූසර්ට පේන්න තමන්ගේ බොට් එකේ තත්වය විතරක් පෙන්නන බොක්ස් එක -->
+  <div class="privacy-status" id="statusContainer" style="display: none;">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div class="dot" id="statusDot"></div>
+      <span id="sessionText">Loading bot status...</span>
     </div>
   </div>
 
-  <!-- ✅ HIDDEN: Session Selection Card එක මෙතනින් හංගලා තියෙන්නේ -->
-  <div class="card" style="display: none;">
-    <div class="session-info" id="sessionInfo">
-      <div style="display:flex;align-items:center;gap:10px">
-        <div class="dot" id="statusDot"></div>
-        <span id="sessionText">Loading connected bots...</span>
-      </div>
-      <select id="sessionSelect" class="form-input" style="max-width:250px;padding:10px;margin:0" onchange="onSessionChange()">
-        <option value="">-- No bots --</option>
-      </select>
-    </div>
-  </div>
-
-  <!-- BOOST FORMS (මේක තමයි ඔයාට පේන්න ඕන කොටස) -->
+  <!-- BOOST FORMS -->
   <div class="card" style="margin-top: 20px;">
     <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap" class="tabs-nav">
       <button class="tab-btn active" data-type="follow" onclick="switchTab('follow', this)">👥 Followers</button>
@@ -157,7 +118,10 @@
 <div id="toast" class="toast"></div>
 
 <script>
-if (!window.location.search.includes('key=')) {
+const urlParams = new URLSearchParams(window.location.search);
+const dashKey = urlParams.get('key');
+
+if (!dashKey) {
     window.location.href = '/login';
 }
 
@@ -172,46 +136,38 @@ function showToast(msg, type='success') {
 
 async function loadSessions() {
   try {
-    const res = await fetch('/api/boost/sessions');
+    // ✅ key එක API එකට යවනවා, එතකොට අපේ බොට් එක විතරයි එවන්නේ
+    const res = await fetch('/api/boost/sessions?key=' + dashKey);
     const data = await res.json();
     const select = document.getElementById('sessionSelect');
+    const statusContainer = document.getElementById('statusContainer');
     
     if (!data.success || !data.sessions || data.sessions.length === 0) {
-      if (document.getElementById('sessionText')) document.getElementById('sessionText').textContent = 'No bots found in database.';
+      if (document.getElementById('sessionText')) document.getElementById('sessionText').textContent = 'No bots found. Deploy a bot first.';
       if (document.getElementById('statusDot')) document.getElementById('statusDot').className = 'dot';
       select.innerHTML = '<option value="">-- No bots --</option>';
+      statusContainer.style.display = 'flex';
       document.getElementById('boostList').innerHTML = '<div style="color: var(--text-dim); font-size: 0.9em; text-align:center; padding: 20px 0;">No bots found. Deploy a bot first.</div>';
       return;
     }
 
-    const activeBots = data.sessions.filter(s => s.status === 'active');
+    const bot = data.sessions[0]; // Backend එකෙන් එවන්නේ එක බොට් එකයි
     
-    if (document.getElementById('sessionText')) {
-      if (activeBots.length === 0) {
-        document.getElementById('sessionText').textContent = 'Bots are offline/connecting. Please wait...';
-        document.getElementById('statusDot').className = 'dot';
-      } else {
-        document.getElementById('sessionText').textContent = `${activeBots.length} Bot(s) active & ready.`;
-        document.getElementById('statusDot').className = 'dot on';
-      }
+    statusContainer.style.display = 'flex';
+    if (bot.status === 'active') {
+      document.getElementById('sessionText').textContent = `Your Bot (+${bot.phone}) is Online 🟢`;
+      document.getElementById('statusDot').className = 'dot on';
+    } else {
+      document.getElementById('sessionText').textContent = `Your Bot (+${bot.phone}) is Offline/Connecting... 🔴`;
+      document.getElementById('statusDot').className = 'dot';
     }
-    
-    let options = '';
-    data.sessions.forEach(sess => {
-      const isOwner = sess.sessionId === '__owner__';
-      const statusIcon = sess.status === 'active' ? '🟢' : '🔴';
-      const label = isOwner ? `Owner (+${sess.phone})` : `User (+${sess.phone})`;
-      const disabled = sess.status === 'active' ? '' : 'disabled';
-      options += `<option value="${sess.sessionId}" ${disabled}>${statusIcon} ${label}</option>`;
-    });
-    select.innerHTML = options;
 
-    // ඔටෝම පළවෙනි බොට්ව සිලෙක්ට් කරනවා
-    if (!currentSessionId && activeBots.length > 0) {
-      currentSessionId = activeBots[0].sessionId;
-      select.value = currentSessionId;
-      loadBoosts();
-    }
+    select.innerHTML = `<option value="${bot.sessionId}">${bot.phone}</option>`;
+    currentSessionId = bot.sessionId;
+    select.value = currentSessionId;
+    
+    loadBoosts();
+    
   } catch (err) {
     console.error(err);
   }
@@ -232,7 +188,14 @@ function switchTab(type, btn) {
 
 async function submitBoost(type) {
   if (!currentSessionId) {
-    showToast('Please select a connected bot first!', 'error');
+    showToast('Please deploy and connect a bot first!', 'error');
+    return;
+  }
+
+  // බොට් එක active ද (Online ද) බලනවා
+  const selectedText = document.getElementById('sessionText').textContent;
+  if (!selectedText.includes('Online')) {
+    showToast('Your bot is offline. Please wait until it connects!', 'error');
     return;
   }
 
