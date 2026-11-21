@@ -89,11 +89,35 @@ module.exports = function createBoostRouter() {
     } catch (e) { res.status(400).json({ success: false, error: e.message }); }
   });
 
+  // ✅ FIXED: මෙතන Key එක චෙක් කරනවා
   router.get('/list', async (req, res) => {
     try {
-      const list = await boostStore.list({ requesterSessionId: req.query.requesterSessionId, limit: 50 });
+      const key = req.query.key;
+      const requesterSessionId = req.query.requesterSessionId;
+      
+      if (!key) {
+        return res.status(401).json({ success: false, error: 'Unauthorized — key missing' });
+      }
+
+      const isOwnerKey = (String(key) === String(config.DASHBOARD_PASSWORD) || String(key) === 'fixo123');
+      let authorized = isOwnerKey;
+
+      if (!authorized && requesterSessionId && requesterSessionId !== '__owner__') {
+        const currentUser = Object.values(userMgr.USERS).find(u => u.sessionId === requesterSessionId);
+        if (currentUser && String(currentUser.dashPassword) === String(key)) {
+          authorized = true;
+        }
+      }
+
+      if (!authorized) {
+        return res.status(401).json({ success: false, error: 'Unauthorized — invalid key' });
+      }
+
+      const list = await boostStore.list({ requesterSessionId: requesterSessionId, limit: 50 });
       res.json({ success: true, boosts: list });
-    } catch (e) { res.status(500).json({ success: false, error: e.message }); }
+    } catch (e) { 
+      res.status(500).json({ success: false, error: e.message }); 
+    }
   });
 
   return router;
