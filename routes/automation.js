@@ -1,17 +1,7 @@
 // ============================================================
 // 🧭 AUTOMATION DASHBOARD API
 // Path: routes/automation.js
-//
-// Backs the single-page dashboard at public/index.html (served at
-// GET /panel). Every endpoint here acts on ONE session that the
-// caller already owns/connected through this same server — there is
-// no "run this on every session" fan-out anywhere in this file, by
-// design: this is a control panel for your own bots, not a tool for
-// coordinating many accounts at one target.
-//
-// Mounted from index.js:  app.use('/api/automation', require('./routes/automation')({ botStatus }));
 // ============================================================
-
 const express = require('express');
 const userMgr = require('../user-manager');
 const channelsLib = require('../lib/channels');
@@ -19,15 +9,14 @@ const taskQueue = require('../lib/taskQueue');
 const config = require('../config');
 
 const SETTINGS_KEYS = [
-  'AUTO_STATUS_SEEN',   // Status Seen (read receipts on statuses)
-  'AUTO_STATUS_REACT',  // Status React
-  'AUTO_STATUS_REPLY',  // Status Reply
-  'AUTO_RECORDING',     // Auto Recording presence
-  'AUTO_TYPING',        // Auto Typing presence
-  'ALWAYS_ONLINE'       // Always Online presence
+  'AUTO_STATUS_SEEN',
+  'AUTO_STATUS_REACT',
+  'AUTO_STATUS_REPLY',
+  'AUTO_RECORDING',
+  'AUTO_TYPING',
+  'ALWAYS_ONLINE'
 ];
 
-// ── Task handlers — each one runs against exactly one session's live connection ──
 taskQueue.registerHandler('react', async ({ sessionId, chatJid, messageId, participant, fromMe, emoji }) => {
   const conn = connFor(sessionId);
   if (!chatJid || !messageId || !emoji) throw new Error('chatJid, messageId and emoji are required');
@@ -56,7 +45,6 @@ taskQueue.registerHandler('follow', async ({ sessionId, channelLink }) => {
   return { followed: true, jid: info.jid, name: info.name || null };
 });
 
-// ── Helpers ─────────────────────────────────────────────────
 function connFor(sessionId) {
   const conn = sessionId === '__owner__' ? global.ownerConn : userMgr.BOT_INSTANCES.get(sessionId)?.conn;
   if (!conn) throw new Error('That session is not connected right now.');
@@ -71,8 +59,6 @@ function isConnected(sessionId) {
 
 function sessionSummary(botStatus) {
   const list = [];
-
-  // Owner session
   list.push({
     sessionId: '__owner__',
     label: config.OWNER_NAME || 'Owner',
@@ -81,8 +67,6 @@ function sessionSummary(botStatus) {
     isOwner: true,
     connectedAt: botStatus.lastUpdate || null
   });
-
-  // Every user-deployed bot (/freebot and the dashboard's own "connect" button use the same registry)
   for (const user of Object.values(userMgr.USERS)) {
     const inst = userMgr.BOT_INSTANCES.get(user.sessionId);
     list.push({
@@ -106,6 +90,7 @@ function readSettings(sessionId) {
   return out;
 }
 
+// ⭐ FIX: persist owner settings to MongoDB via writeConfig
 function writeSettings(sessionId, patch) {
   const clean = {};
   for (const k of SETTINGS_KEYS) {
@@ -117,12 +102,17 @@ function writeSettings(sessionId, patch) {
       if (!global.ownerConn._userConfig) global.ownerConn._userConfig = {};
       Object.assign(global.ownerConn._userConfig, clean);
     }
+    try {
+      if (typeof global.writeOwnerConfig === 'function') {
+        global.writeOwnerConfig(clean).catch(e => console.error('owner cfg save:', e.message));
+      }
+    } catch (e) { console.error('owner cfg save:', e.message); }
     return clean;
   }
 
   const current = userMgr.loadUserConfig(sessionId);
   Object.assign(current, clean);
-  userMgr.saveUserConfig(sessionId, current);
+  userMgr.saveUserConfig(sessionId, current).catch(() => {});
   const inst = userMgr.BOT_INSTANCES.get(sessionId);
   if (inst && inst.conn) {
     if (!inst.conn._userConfig) inst.conn._userConfig = {};
@@ -131,16 +121,13 @@ function writeSettings(sessionId, patch) {
   return clean;
 }
 
-// ── Router ──────────────────────────────────────────────────
 module.exports = function createAutomationRouter({ botStatus }) {
   const router = express.Router();
 
-  // Sessions ---------------------------------------------------
   router.get('/sessions', (req, res) => {
     res.json({ success: true, sessions: sessionSummary(botStatus) });
   });
 
-  // Start a new session (QR flow). Body: { label }
   router.post('/sessions', async (req, res) => {
     try {
       const label = (req.body && req.body.label ? String(req.body.label) : '').trim();
@@ -164,7 +151,6 @@ module.exports = function createAutomationRouter({ botStatus }) {
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
   });
 
-  // Poll QR / connection status while linking
   router.get('/sessions/:sessionId/status', (req, res) => {
     const { sessionId } = req.params;
     if (sessionId === '__owner__') {
@@ -191,7 +177,6 @@ module.exports = function createAutomationRouter({ botStatus }) {
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
   });
 
-  // Settings -----------------------------------------------------
   router.get('/sessions/:sessionId/settings', (req, res) => {
     try { res.json({ success: true, settings: readSettings(req.params.sessionId) }); }
     catch (e) { res.status(500).json({ success: false, error: e.message }); }
@@ -204,9 +189,6 @@ module.exports = function createAutomationRouter({ botStatus }) {
     } catch (e) { res.status(500).json({ success: false, error: e.message }); }
   });
 
-  // Tasks ----------------------------------------------------------
-  // Every task below runs against ONE connected session named in the
-  // body (sessionId) — never "all sessions" / "every bot".
   router.post('/tasks/react', (req, res) => {
     try {
       const body = req.body || {};
