@@ -12,7 +12,10 @@ const DEFAULT_PATH = path.join(__dirname, 'config.default.json');
 console.log(`📂 [config.js] Reading from: ${CONFIG_PATH}`);
 
 function convertToBool(text, fault = 'true') {
-    return text === fault ? true : false;
+    if (text === true || text === 1) return fault === 'true';
+    if (text === false || text === 0) return fault !== 'true';
+    if (text === undefined || text === null) return fault === 'true';
+    return String(text).toLowerCase().trim() === fault;
 }
 
 function loadJsonConfig() {
@@ -113,12 +116,18 @@ const baseConfig = {
     MONGODB_URI: process.env.MONGODB_URI || get('MONGODB_URI', 'mongodb+srv://fixodev1_db_user:tYaX69ozKljm0Eha@cluster0.t8xf96n.mongodb.net/adcash_lk?appName=Cluster0'),
     MONGODB_DB_NAME: process.env.MONGODB_DB_NAME || get('MONGODB_DB_NAME', 'adcash_lk'),
 
-    // ✅ NEW: BOOST SETTINGS (Delay වැඩි කරලා තියෙනවා)
+    // ─── BOOST ───
     BOOST_ENABLED: get('BOOST_ENABLED', 'true'),
-    BOOST_MIN_DELAY_MS: get('BOOST_MIN_DELAY_MS', '15000'), // තත්පර 15
-    BOOST_MAX_DELAY_MS: get('BOOST_MAX_DELAY_MS', '25000'), // තත්පර 25
+    BOOST_MIN_DELAY_MS: get('BOOST_MIN_DELAY_MS', '15000'),
+    BOOST_MAX_DELAY_MS: get('BOOST_MAX_DELAY_MS', '25000'),
     BOOST_AUTO_REVERT_HOURS: get('BOOST_AUTO_REVERT_HOURS', '24')
 };
+
+// ⭐ FIX: Keep MODE and PUBLIC_MODE in sync (PUBLIC_MODE was being toggled but nothing read it)
+if (baseConfig.PUBLIC_MODE !== undefined) {
+    const pub = String(baseConfig.PUBLIC_MODE).toLowerCase() === 'true';
+    if (!baseConfig.MODE) baseConfig.MODE = pub ? 'public' : 'private';
+}
 
 console.log('🔑 SESSION_ID:', baseConfig.SESSION_ID ? 'loaded' : 'not set (pairing code will be used)');
 console.log('⚙️ PREFIX:', baseConfig.PREFIX);
