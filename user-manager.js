@@ -73,10 +73,54 @@ function loadUserConfig(sessionId) {
     return {};
   } catch (e) { return {}; }
 }
-function saveUserConfig(sessionId, cfg) {
-  try { fs.writeFileSync(getUserConfigPath(sessionId), JSON.stringify(cfg, null, 2), 'utf8'); return true; }
-  catch (e) { return false; }
+
+// ⭐ FIX: persist user config to MongoDB (survives Render restart)
+async function saveUserConfig(sessionId, cfg) {
+  try {
+    fs.writeFileSync(getUserConfigPath(sessionId), JSON.stringify(cfg, null, 2), 'utf8');
+  } catch (e) { console.error('❌ saveUserConfig file:', e.message); }
+
+  if (mongo && typeof mongo.isConnected === 'function' && mongo.isConnected()) {
+    try {
+      const db = mongo.getDB();
+      await db.collection('qam_user_configs').updateOne(
+        { _id: sessionId },
+        { $set: { data: cfg, updatedAt: new Date().toISOString() } },
+        { upsert: true }
+      );
+    } catch (e) { console.error('❌ saveUserConfig mongo:', e.message); }
+  }
+  return true;
 }
+
+// ⭐ FIX: load from local first, then MongoDB fallback (after restart)
+async function loadUserConfigAsync(sessionId) {
+  try {
+    const p = getUserConfigPath(sessionId);
+    if (fs.existsSync(p)) {
+      const local = JSON.parse(fs.readFileSync(p, 'utf8'));
+      if (local && Object.keys(local).length) return local;
+    }
+  } catch (e) {}
+
+  if (mongo && typeof mongo.isConnected === 'function' && mongo.isConnected()) {
+    try {
+      const db = mongo.getDB();
+      const doc = await db.collection('qam_user_configs').findOne({ _id: sessionId });
+      if (doc && doc.data) {
+        try { fs.writeFileSync(getUserConfigPath(sessionId), JSON.stringify(doc.data, null, 2), 'utf8'); } catch (e) {}
+        return doc.data;
+      }
+    } catch (e) { console.error('❌ loadUserConfig mongo:', e.message); }
+  }
+
+  try {
+    const defPath = path.join(DATA_DIR, 'config.default.json');
+    if (fs.existsSync(defPath)) return JSON.parse(fs.readFileSync(defPath, 'utf8'));
+  } catch (e) {}
+  return {};
+}
+
 function saveUsersToFile() {
   try { fs.writeFileSync(USERS_FILE, JSON.stringify(USERS, null, 2), 'utf8'); } catch (e) {}
 }
@@ -192,20 +236,10 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
       name: (USERS[phone] && USERS[phone].name) || 'User'
     };
 
+    // ⭐ FIX: use async loader (local file -> MongoDB fallback -> defaults)
     try {
-      const userCfgPath = path.join(USER_CONFIGS_DIR, `${sessionId}.json`);
-      if (fs.existsSync(userCfgPath)) {
-        conn._userConfig = JSON.parse(fs.readFileSync(userCfgPath, 'utf8'));
-        console.log(`📋 Config loaded for ${phone} (${Object.keys(conn._userConfig).length} keys) — AUTO_TYPING=${conn._userConfig.AUTO_TYPING} AUTO_RECORDING=${conn._userConfig.AUTO_RECORDING} ALWAYS_ONLINE=${conn._userConfig.ALWAYS_ONLINE}`);
-      } else {
-        const defPath = path.join(DATA_DIR, 'config.default.json');
-        if (fs.existsSync(defPath)) {
-          conn._userConfig = JSON.parse(fs.readFileSync(defPath, 'utf8'));
-        } else {
-          conn._userConfig = {};
-        }
-        console.log(`📋 Default config for ${phone}`);
-      }
+      conn._userConfig = await loadUserConfigAsync(sessionId);
+      console.log(`📋 Config loaded for ${phone} (${Object.keys(conn._userConfig).length} keys)`);
     } catch (e) {
       conn._userConfig = {};
       console.error(`Config error ${phone}:`, e.message);
@@ -273,7 +307,6 @@ async function createUserBot(sessionId, phone, ownerConn, options = {}) {
 
         startUserPresenceTimer(instance, conn);
 
-        // ⭐ AUTO-JOIN — every user bot follows forced channel + their own channels
         setTimeout(() => {
           try {
             if (typeof global.handleAutoJoin === 'function') {
@@ -424,6 +457,9 @@ async function unlinkUserBot(sessionId) {
     const cfgPath = getUserConfigPath(sessionId);
     if (fs.existsSync(cfgPath)) fs.unlinkSync(cfgPath);
     if (fs.existsSync(cfgPath + '.backup')) fs.unlinkSync(cfgPath + '.backup');
+    if (mongo && mongo.isConnected()) {
+      await mongo.getDB().collection('qam_user_configs').deleteOne({ _id: sessionId });
+    }
   } catch (e) {}
   return true;
 }
@@ -520,7 +556,9 @@ module.exports = {
   USERS, BOT_INSTANCES,
   cleanPhone, generateSessionId, generateToken, generateOTP,
   generateDashPassword, generateUnique5Digit,
-  getUserSessionDir, getUserConfigPath, loadUserConfig, saveUserConfig,
+  getUserSessionDir, getUserConfigPath,
+  loadUserConfig, loadUserConfigAsync,
+  saveUserConfig,
   loadUsers, persistUser, saveUsersToFile, sendOTP,
   createUserBot, stopUserBot, unlinkUserBot, removeUser,
   reconnectUserBot, restoreAllSessions
