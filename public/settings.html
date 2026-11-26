@@ -96,8 +96,20 @@
 <script>
 const KEY = '{{KEY}}'; let currentConfig = {};
 function toast(msg, type='success') { const t = document.getElementById('toast'); t.textContent = msg; t.className = 'toast ' + type + ' show'; setTimeout(() => t.classList.remove('show'), 3200); }
-async function loadConfig() { try { const r = await fetch('/api/config?key=' + KEY); const d = await r.json(); if (!d.success) throw new Error(d.error || 'Failed'); currentConfig = d.config; renderForm(d.config); } catch (e) { document.getElementById('config-container').innerHTML = '<div class="card" style="color:var(--danger);text-align:center;padding:40px">❌ ' + e.message + '</div>'; } }
+
+async function loadConfig() {
+  try {
+    const r = await fetch('/api/config?key=' + encodeURIComponent(KEY));
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Failed');
+    currentConfig = d.config; renderForm(d.config);
+  } catch (e) {
+    document.getElementById('config-container').innerHTML =
+      '<div class="card" style="color:var(--danger);text-align:center;padding:40px">❌ ' + e.message + '</div>';
+  }
+}
 function isBool(val) { return val === 'true' || val === 'false'; }
+
 function renderForm(cfg) {
   const groups = {
     'Bot Settings': ['PREFIX', 'MODE', 'BUTTON', 'BOT_NAME', 'STICKER_NAME', 'OWNER_NAME', 'OWNER_NUMBER', 'DEV', 'DESCRIPTION'],
@@ -113,7 +125,8 @@ function renderForm(cfg) {
   for (const [title, fields] of Object.entries(groups)) {
     html += '<div class="card" style="animation-delay:' + (idx * 0.04) + 's"><h3>' + title + '</h3>';
     for (const f of fields) {
-      if (!(f in cfg)) continue; const val = cfg[f]; const label = f.replace(/_/g, ' ').toLowerCase();
+      if (!(f in cfg)) continue;
+      const val = String(cfg[f]); const label = f.replace(/_/g, ' ').toLowerCase();
       if (isBool(val)) html += '<div class="field"><div class="toggle"><span class="toggle-label">' + label + '</span><label class="switch"><input type="checkbox" data-key="' + f + '" ' + (val === 'true' ? 'checked' : '') + '><span class="slider"></span></label></div></div>';
       else if (f === 'MODE') html += '<div class="field"><label>' + label + '</label><select data-key="' + f + '"><option value="public" ' + (val === 'public' ? 'selected' : '') + '>public</option><option value="private" ' + (val === 'private' ? 'selected' : '') + '>private</option><option value="inbox" ' + (val === 'inbox' ? 'selected' : '') + '>inbox</option><option value="groups" ' + (val === 'groups' ? 'selected' : '') + '>groups</option></select></div>';
       else if (f === 'STATUS_REACT_MODE') html += '<div class="field"><label>' + label + '</label><select data-key="' + f + '"><option value="default" ' + (val === 'default' ? 'selected' : '') + '>default</option><option value="custom" ' + (val === 'custom' ? 'selected' : '') + '>custom</option><option value="random" ' + (val === 'random' ? 'selected' : '') + '>random</option></select></div>';
@@ -122,90 +135,172 @@ function renderForm(cfg) {
     }
     html += '</div>'; idx++;
   }
-  document.getElementById('config-container').innerHTML = html;
+  document.getElementById('config-container').innerHTML = html || '<div class="card" style="text-align:center;padding:40px">No settings available</div>';
 }
+
+// ⭐ FIX: include { key, config } in body
 async function saveConfig() {
+  const btn = document.getElementById('saveBtn');
+  const label = document.getElementById('saveLabel');
+  btn.disabled = true; label.innerHTML = '<span class="loading"></span>Saving...';
   try {
     const payload = {};
     document.querySelectorAll('#config-container [data-key]').forEach(el => {
       payload[el.dataset.key] = el.type === 'checkbox' ? String(el.checked) : el.value;
     });
-    const r = await fetch('/api/config?key=' + KEY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    const r = await fetch('/api/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: KEY, config: payload })
+    });
     const d = await r.json();
     if (!d.success) throw new Error(d.error || 'Failed');
     toast('✅ Saved & applied'); loadConfig();
   } catch (e) { toast('❌ ' + e.message, 'error'); }
+  finally { btn.disabled = false; label.textContent = 'Save & Apply'; }
 }
-async function restartBot() { try { const r = await fetch('/api/bot/restart?key=' + KEY, { method: 'POST' }); const d = await r.json(); if (!d.success) throw new Error(d.error || 'Failed'); toast('🔄 Restarting bot...'); } catch (e) { toast('❌ ' + e.message, 'error'); } }
-async function restoreBackup() { if (!confirm('Restore previous backup?')) return; try { const r = await fetch('/api/config/restore?key=' + KEY, { method: 'POST' }); const d = await r.json(); if (!d.success) throw new Error(d.error || 'Failed'); toast('↩️ Backup restored'); loadConfig(); } catch (e) { toast('❌ ' + e.message, 'error'); } }
-async function factoryReset() { if (!confirm('⚠️ This will reset ALL settings. Continue?')) return; try { const r = await fetch('/api/config/reset?key=' + KEY, { method: 'POST' }); const d = await r.json(); if (!d.success) throw new Error(d.error || 'Failed'); toast('🗑️ Reset done'); loadConfig(); } catch (e) { toast('❌ ' + e.message, 'error'); } }
 
+// ⭐ FIX: correct endpoint + body
+async function restartBot() {
+  try {
+    const r = await fetch('/api/restart', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: KEY })
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Failed');
+    toast('🔄 Restarting bot...');
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+// ⭐ FIX: /api/config/restore -> /api/config/undo, add body
+async function restoreBackup() {
+  if (!confirm('Restore previous backup?')) return;
+  try {
+    const r = await fetch('/api/config/undo', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: KEY })
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Failed');
+    toast('↩️ Backup restored'); loadConfig();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+// ⭐ FIX: include { key } in body
+async function factoryReset() {
+  if (!confirm('⚠️ This will reset ALL settings. Continue?')) return;
+  try {
+    const r = await fetch('/api/config/reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: KEY })
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Failed');
+    toast('🗑️ Reset done'); loadConfig();
+  } catch (e) { toast('❌ ' + e.message, 'error'); }
+}
+
+// ⭐ FIX: backend returns flat { enabled, action, whitelist (string), ... } not nested .settings
 async function loadAntilink() {
   try {
-    const r = await fetch('/api/antilink?key=' + KEY); const d = await r.json();
+    const r = await fetch('/api/antilink?key=' + encodeURIComponent(KEY));
+    const d = await r.json();
     if (!d.success) return;
-    const s = d.settings || {};
-    document.getElementById('al-enabled').checked = !!s.enabled;
-    document.getElementById('al-action').value = s.action || 'delete';
-    document.getElementById('al-limit').value = s.warnLimit || 3;
-    document.getElementById('al-whitelist-enabled').checked = !!s.whitelistEnabled;
-    document.getElementById('al-whitelist').value = (s.whitelist || []).join(',');
-    document.getElementById('al-notify').checked = !!s.notify;
-    document.getElementById('al-skipadmins').checked = !!s.skipAdmins;
-    document.getElementById('al-skipbot').checked = !!s.skipBot;
-    document.getElementById('al-status').textContent = s.enabled ? 'ON' : 'OFF';
-    document.getElementById('al-action-status').textContent = s.action || 'delete';
-    document.getElementById('al-limit-status').textContent = s.warnLimit || 3;
-    document.getElementById('al-whitelist-status').textContent = s.whitelistEnabled ? (s.whitelist || []).join(', ') : 'disabled';
+    document.getElementById('al-enabled').checked = !!d.enabled;
+    document.getElementById('al-action').value = d.action || 'delete';
+    document.getElementById('al-limit').value = d.warnLimit || 3;
+    document.getElementById('al-whitelist-enabled').checked = !!d.whitelistEnabled;
+    document.getElementById('al-whitelist').value = typeof d.whitelist === 'string' ? d.whitelist : '';
+    document.getElementById('al-notify').checked = !!d.notify;
+    document.getElementById('al-skipadmins').checked = !!d.skipAdmins;
+    document.getElementById('al-skipbot').checked = !!d.skipBot;
+    document.getElementById('al-status').textContent = d.enabled ? 'ON' : 'OFF';
+    document.getElementById('al-action-status').textContent = d.action || 'delete';
+    document.getElementById('al-limit-status').textContent = d.warnLimit || 3;
+    document.getElementById('al-whitelist-status').textContent =
+      d.whitelistEnabled ? (d.whitelist || '') : 'disabled';
   } catch (e) {}
 }
+
+// ⭐ FIX: include key, send whitelist as raw string
 async function saveAntilink() {
   try {
     const payload = {
+      key: KEY,
       enabled: document.getElementById('al-enabled').checked,
       action: document.getElementById('al-action').value,
       warnLimit: parseInt(document.getElementById('al-limit').value, 10) || 3,
       whitelistEnabled: document.getElementById('al-whitelist-enabled').checked,
-      whitelist: document.getElementById('al-whitelist').value.split(',').map(x => x.trim()).filter(Boolean),
+      whitelist: document.getElementById('al-whitelist').value,
       notify: document.getElementById('al-notify').checked,
       skipAdmins: document.getElementById('al-skipadmins').checked,
       skipBot: document.getElementById('al-skipbot').checked
     };
-    const r = await fetch('/api/antilink?key=' + KEY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
-    const d = await r.json(); if (!d.success) throw new Error(d.error || 'Failed');
+    const r = await fetch('/api/antilink', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Failed');
     toast('✅ Antilink saved'); loadAntilink();
   } catch (e) { toast('❌ ' + e.message, 'error'); }
 }
+
 async function alQuick(mode) {
-  const on = mode === 'on';
-  document.getElementById('al-enabled').checked = on;
+  document.getElementById('al-enabled').checked = (mode === 'on');
   await saveAntilink();
 }
+
+// ⭐ FIX: backend expects { key, action: 'toggle_dm'|'toggle_gc' }
 async function toggleAD(scope) {
   try {
-    const key = scope === 'dm' ? 'ad-dm' : 'ad-gc';
-    const enabled = document.getElementById(key).checked;
-    const r = await fetch('/api/antidelete?key=' + KEY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ scope, enabled }) });
-    const d = await r.json(); if (!d.success) throw new Error(d.error || 'Failed');
-    toast(`✅ Anti-Delete ${scope.toUpperCase()} ${enabled ? 'ON' : 'OFF'}`); loadAntiDelete();
-  } catch (e) { toast('❌ ' + e.message, 'error'); }
+    const action = 'toggle_' + scope;
+    const r = await fetch('/api/antidelete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: KEY, action })
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Failed');
+    document.getElementById('ad-dm').checked = !!d.dm;
+    document.getElementById('ad-gc').checked = !!d.gc;
+    document.getElementById('ad-dm-status').textContent = d.dm ? 'ON' : 'OFF';
+    document.getElementById('ad-gc-status').textContent = d.gc ? 'ON' : 'OFF';
+    toast('✅ ' + scope.toUpperCase() + ' ' + (d[scope] ? 'ON' : 'OFF'));
+  } catch (e) {
+    toast('❌ ' + e.message, 'error');
+    loadAntiDelete();
+  }
 }
+
 async function adAction(action) {
   try {
-    const r = await fetch('/api/antidelete?key=' + KEY, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ action }) });
-    const d = await r.json(); if (!d.success) throw new Error(d.error || 'Failed');
+    const r = await fetch('/api/antidelete', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: KEY, action })
+    });
+    const d = await r.json();
+    if (!d.success) throw new Error(d.error || 'Failed');
     toast('✅ ' + action.replace('_', ' ')); loadAntiDelete();
   } catch (e) { toast('❌ ' + e.message, 'error'); }
 }
+
+// ⭐ FIX: backend returns flat { gc, dm } not nested .settings
 async function loadAntiDelete() {
   try {
-    const r = await fetch('/api/antidelete?key=' + KEY); const d = await r.json();
+    const r = await fetch('/api/antidelete?key=' + encodeURIComponent(KEY));
+    const d = await r.json();
     if (!d.success) return;
-    const s = d.settings || {};
-    document.getElementById('ad-dm').checked = !!s.dm;
-    document.getElementById('ad-gc').checked = !!s.gc;
-    document.getElementById('ad-dm-status').textContent = s.dm ? 'ON' : 'OFF';
-    document.getElementById('ad-gc-status').textContent = s.gc ? 'ON' : 'OFF';
+    document.getElementById('ad-dm').checked = !!d.dm;
+    document.getElementById('ad-gc').checked = !!d.gc;
+    document.getElementById('ad-dm-status').textContent = d.dm ? 'ON' : 'OFF';
+    document.getElementById('ad-gc-status').textContent = d.gc ? 'ON' : 'OFF';
   } catch (e) {}
 }
 
