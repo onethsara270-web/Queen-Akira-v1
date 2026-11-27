@@ -19,7 +19,8 @@ async (conn, mek, m, { from, isGroup, isOwner, reply }) => {
         if (!isOwner) return reply('❌ Owner only command.');
         if (isGroup) return reply('🔒 Send this command in a private chat with the bot.');
 
-        const base = (global.BOT_DOMAIN || '').replace(/\/$/, '');
+        // ⭐ Use config.BOT_DOMAIN first, then fallback to global
+        const base = String(config.BOT_DOMAIN || global.BOT_DOMAIN || '').replace(/\/$/, '');
         let text;
 
         if (conn._isOwnerBot === false && conn._userInfo) {
