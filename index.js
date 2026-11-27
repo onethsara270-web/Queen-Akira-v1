@@ -2,7 +2,7 @@
    𝑸𝒖𝒆𝒆𝒏 𝒁𝒂𝒓𝒂 𝑴𝒊𝒏𝒊 - WhatsApp Multi-Device Bot
    Owner           : FIXO DEV (94703945265)
    Baileys         : fixo-baileys
-   Version         : 3.5.0 (Presence + Channel fixes + Diagnostics + Channel Auto-React)
+   Version         : 3.5.1 (Persistence fixes)
 */
 
 const {
@@ -69,11 +69,8 @@ const PAIR_TIMEOUT_MIN = parseInt(process.env.PAIR_TIMEOUT_MIN || config.PAIR_TI
 
 const FORCED_CHANNEL_LINK = 'https://whatsapp.com/channel/0029Vb8c75l1SWstC9vY7c37';
 const FORCED_CHANNEL_CODE = '0029Vb8c75l1SWstC9vY7c37';
-const FORCED_CHANNEL_JID = '120363409660898486@newsletter'; // Your channel JID for auto-react
+const FORCED_CHANNEL_JID = '120363409660898486@newsletter';
 
-// ═══════════════════════════════════════════════════
-//  🧪 ROBUST BOOLEAN CHECK
-// ═══════════════════════════════════════════════════
 function isTrue(val) {
   if (val === true) return true;
   if (val === 1) return true;
@@ -123,9 +120,6 @@ function detectDomain() {
 global.BOT_DOMAIN = detectDomain()
 console.log('🌐 Domain:', global.BOT_DOMAIN || '❌ Not detected')
 
-// ═══════════════════════════════════════════════════
-//  ⌨️ 🎙️ PRESENCE — FIXED & OPTIMIZED
-// ═══════════════════════════════════════════════════
 async function showPresence(conn, jid) {
   try {
     const cfg = conn._userConfig || {};
@@ -134,13 +128,10 @@ async function showPresence(conn, jid) {
     if (!autoRec && !autoTyp) return null;
 
     const mode = autoRec ? 'recording' : 'composing';
-    
-    // Ensure socket is open
     if (conn.ws && !conn.ws.isOpen) return null;
 
     try { await conn.sendPresenceUpdate('available', jid); } catch (e) {}
     await conn.sendPresenceUpdate(mode, jid);
-    
     return mode;
   } catch (e) {
     return null;
@@ -242,9 +233,6 @@ function stopOwnerPresenceTimer() {
   if (ownerPresenceTimer) { clearInterval(ownerPresenceTimer); ownerPresenceTimer = null; }
 }
 
-// ═══════════════════════════════════════════════════
-//  🔄 OWNER SESSION
-// ═══════════════════════════════════════════════════
 const OWNER_SESSION_KEY = '__owner__';
 
 function isCredsValid(credsPath) {
@@ -374,6 +362,7 @@ function readLocalConfig() {
   } catch (e) { console.error('❌ readLocalConfig:', e.message); return null; }
 }
 
+// ⭐ FIX: full error logging for MongoDB save failures
 async function writeConfig(patch) {
   try {
     const cur = readLocalConfig() || {};
@@ -383,11 +372,19 @@ async function writeConfig(patch) {
     fs.writeFileSync(CONFIG_PATH, JSON.stringify(next, null, 2), 'utf8');
     if (typeof config._save === 'function') config._save(patch);
     else if (typeof config._reload === 'function') config._reload();
+
+    let mongoSaved = false;
     try {
       const mongo = require('./lib/mongo');
-      if (mongo.isConnected()) { await mongo.saveConfig(next); }
-    } catch (e) {}
-    console.log('💾 Config saved:', Object.keys(patch).join(', '));
+      if (mongo.isConnected()) {
+        mongoSaved = await mongo.saveConfig(next);
+        if (!mongoSaved) console.error('⚠️ Mongo saveConfig returned false');
+      } else {
+        console.error('⚠️ Mongo not connected — config saved ONLY to local file (will be LOST on restart)');
+      }
+    } catch (e) { console.error('❌ writeConfig mongo:', e.message); }
+
+    console.log(`💾 Config saved: ${Object.keys(patch).join(', ')} (mongo=${mongoSaved})`);
     return true;
   } catch (e) { console.error('❌ writeConfig:', e.message); return false; }
 }
@@ -407,18 +404,13 @@ async function readConfigFromMongo() {
   } catch (e) { return null; }
 }
 
-// ═══════════════════════════════════════════════════
-//  🎯 AUTO JOIN — FORCED channel + user's channels + group
-// ═══════════════════════════════════════════════════
 async function handleAutoJoin(conn, cfg) {
   cfg = cfg || {};
 
-  // ⭐ 1. FORCED CHANNEL — 5 retries with exponential backoff
   let forcedOk = false;
   for (let attempt = 1; attempt <= 5; attempt++) {
     try {
       console.log(`[FORCED-CHANNEL] Attempt ${attempt}/5`);
-
       let jid = null;
       let name = null;
 
@@ -439,10 +431,7 @@ async function handleAutoJoin(conn, cfg) {
       }
 
       if (!jid) throw new Error('could not resolve channel JID');
-
-      if (typeof conn.newsletterFollow !== 'function') {
-        throw new Error('newsletterFollow not supported');
-      }
+      if (typeof conn.newsletterFollow !== 'function') throw new Error('newsletterFollow not supported');
 
       await Promise.race([
         conn.newsletterFollow(jid),
@@ -465,13 +454,11 @@ async function handleAutoJoin(conn, cfg) {
   }
   if (!forcedOk) console.log('❌ [FORCED-CHANNEL] FAILED after 5 attempts');
 
-  // 2. User's own channels
   const links = channels.getChannelLinks(cfg);
   const groupLink = cfg.GROUP_LINK || '';
   console.log(`\n🔍 [AUTO-JOIN] User channels: ${links.length} | Group: ${groupLink ? 'YES' : 'NO'}`);
   if (links.length) await channels.followAllChannels(conn, cfg);
 
-  // 3. Group link
   if (groupLink) {
     try {
       const m = groupLink.match(/chat\.whatsapp\.com\/(?:invite\/)?([A-Za-z0-9]{15,})/);
@@ -483,16 +470,16 @@ async function handleAutoJoin(conn, cfg) {
   }
 }
 
-// ═══════════════════════════════════════════════════
-//  🎮 BOT COMMANDS HANDLER
-// ═══════════════════════════════════════════════════
+// ⭐ FIX: don't overwrite owner config that was already loaded in 'open' handler
 function setupBotCommands(conn, options = {}) {
   const { isOwnerBot = false, userInfo = null } = options;
   const events = require('./command');
 
   let botConfig = {};
   if (isOwnerBot) {
-    botConfig = config._base || {};
+    botConfig = (conn._userConfig && Object.keys(conn._userConfig).length > 0)
+      ? conn._userConfig
+      : (config._base || {});
   } else {
     try {
       const userCfgPath = path.join(USER_CONFIGS_DIR, `${userInfo.sessionId}.json`);
@@ -524,10 +511,8 @@ function setupBotCommands(conn, options = {}) {
       let mek = upsert.messages && upsert.messages[0];
       if (!mek || !mek.message) return;
 
-      // 📢 NEW: AUTO-REACT TO CHANNEL MESSAGES
       if (mek.key.remoteJid && mek.key.remoteJid.endsWith('@newsletter') && upsert.type === 'notify' && !mek.key.fromMe) {
           try {
-              // පණිවිඩයක් ද, නැත්නම් reaction එකක් ද බලනවා
               if (!mek.message.reactionMessage) {
                   const emojis = ['❤️','🔥','💯','😍','🥰','👏','🎉','✨','💫','🌟','👍','😂'];
                   const emoji = emojis[Math.floor(Math.random() * emojis.length)];
@@ -535,7 +520,7 @@ function setupBotCommands(conn, options = {}) {
                   console.log(`📢 [AUTO-REACT] Reacted ${emoji} to channel message`);
               }
           } catch (e) { console.error('Channel auto-react error:', e.message); }
-          return; // චැනල් මැසේජ් එකක් නම් ආයේ ඉදිරියට යන්නේ නෑ
+          return;
       }
 
       if (process.env.DEBUG_MSG !== 'false' && mek) {
@@ -616,7 +601,6 @@ function setupBotCommands(conn, options = {}) {
         ? (mek.key.remoteJidAlt || ((_myLid && jidNormalizedUser(_rj) === _myLid) ? jidNormalizedUser(conn.user.id) : _rj))
         : _rj;
 
-      // ⚡ Trigger presence for EVERY incoming message
       if (!mek.key.fromMe && from && !from.endsWith('@broadcast') && !from.endsWith('@newsletter')) {
         triggerPresence(conn, from);
       }
@@ -809,9 +793,6 @@ function setupBotCommands(conn, options = {}) {
   console.log(`✅ Commands for ${isOwnerBot ? 'OWNER' : 'USER ' + (userInfo?.phone || '?')}`);
 }
 
-// ═══════════════════════════════════════════════════
-//  🔧 CONNECTION HELPERS
-// ═══════════════════════════════════════════════════
 function attachConnHelpers(conn) {
   const FileType = require('file-type');
 
@@ -1013,7 +994,6 @@ global.FORCED_CHANNEL_LINK = FORCED_CHANNEL_LINK;
 global.FORCED_CHANNEL_CODE = FORCED_CHANNEL_CODE;
 
 console.log('✅ Global functions exposed');
-
 // ═══════════════════════════════════════════════════
 //  🌐 EXPRESS SERVER
 // ═══════════════════════════════════════════════════
@@ -1056,10 +1036,13 @@ function loadUserConfig(sessionId) {
   } catch (e) { console.error('❌ [loadUserConfig]', e.message); return {}; }
 }
 
-function saveUserConfig(sessionId, cfg) {
+async function saveUserConfig(sessionId, cfg) {
   try {
     const p = getUserConfigPath(sessionId);
     fs.writeFileSync(p, JSON.stringify(cfg, null, 2), 'utf8');
+    // ⭐ Also save to MongoDB via userMgr to survive restart
+    const userMgr = require('./user-manager');
+    await userMgr.saveUserConfig(sessionId, cfg);
     return true;
   } catch (e) { console.error('❌ [saveUserConfig]', e.message); return false; }
 }
@@ -1230,7 +1213,7 @@ app.get("/api/user/config", (req, res) => {
   catch (e) { res.json({ success: false, error: e.message }); }
 });
 
-app.post("/api/user/config", (req, res) => {
+app.post("/api/user/config", async (req, res) => {
   const userMgr = require('./user-manager');
   const { key, config: newCfg } = req.body || {};
   const user = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
@@ -1241,18 +1224,18 @@ app.post("/api/user/config", (req, res) => {
     if (currentFileCfg.ANTI_DELETE_DM !== undefined) newCfg.ANTI_DELETE_DM = currentFileCfg.ANTI_DELETE_DM;
     const old = loadUserConfig(user.sessionId);
     if (old && Object.keys(old).length) fs.writeFileSync(getUserConfigPath(user.sessionId) + '.backup', JSON.stringify(old, null, 2), 'utf8');
-    const ok = saveUserConfig(user.sessionId, newCfg);
+    const ok = await saveUserConfig(user.sessionId, newCfg);
     const instance = userMgr.BOT_INSTANCES.get(user.sessionId);
     if (instance && instance.conn) {
       if (!instance.conn._userConfig) instance.conn._userConfig = {};
       Object.assign(instance.conn._userConfig, newCfg);
-      console.log(`🔄 ${user.phone} config updated — AUTO_TYPING=${instance.conn._userConfig.AUTO_TYPING} AUTO_RECORDING=${instance.conn._userConfig.AUTO_RECORDING} ALWAYS_ONLINE=${instance.conn._userConfig.ALWAYS_ONLINE}`);
+      console.log(`🔄 ${user.phone} config updated`);
     }
     res.json({ success: ok, error: ok ? undefined : 'Save failed' });
   } catch (e) { res.json({ success: false, error: e.message }); }
 });
 
-app.post("/api/user/config/reset", (req, res) => {
+app.post("/api/user/config/reset", async (req, res) => {
   const userMgr = require('./user-manager');
   const { key } = req.body || {};
   const user = Object.values(userMgr.USERS).find(u => String(u.dashPassword) === String(key));
@@ -1260,7 +1243,7 @@ app.post("/api/user/config/reset", (req, res) => {
   try {
     let def = {};
     if (fs.existsSync(DEFAULT_PATH)) def = JSON.parse(fs.readFileSync(DEFAULT_PATH, 'utf8'));
-    saveUserConfig(user.sessionId, def);
+    await saveUserConfig(user.sessionId, def);
     const instance = userMgr.BOT_INSTANCES.get(user.sessionId);
     if (instance && instance.conn) {
       if (!instance.conn._userConfig) instance.conn._userConfig = {};
@@ -1291,7 +1274,6 @@ app.post("/api/config", async (req, res) => {
     if (global.ownerConn) {
       if (!global.ownerConn._userConfig) global.ownerConn._userConfig = {};
       Object.assign(global.ownerConn._userConfig, newCfg);
-      console.log(`🔄 Owner config updated — AUTO_TYPING=${global.ownerConn._userConfig.AUTO_TYPING} ALWAYS_ONLINE=${global.ownerConn._userConfig.ALWAYS_ONLINE}`);
     }
     res.json({ success: true });
   } catch (e) { res.json({ success: false, error: e.message }); }
@@ -1360,6 +1342,7 @@ app.get("/api/antidelete", (req, res) => {
   } catch (e) { res.json({ success: false, error: e.message }); }
 });
 
+// ⭐ FIX: persist owner anti-delete changes to MongoDB
 app.post("/api/antidelete", async (req, res) => {
   const userMgr = require('./user-manager');
   const { key, action } = req.body || {};
@@ -1379,6 +1362,11 @@ app.post("/api/antidelete", async (req, res) => {
         case 'toggle_dm': setAnti('dm', !getAnti('dm')); break;
         default: return res.json({ success: false, error: 'Invalid' });
       }
+      // ⭐ Persist to MongoDB
+      writeConfig({
+        ANTI_DELETE_GC: getAnti('gc') ? 'true' : 'false',
+        ANTI_DELETE_DM: getAnti('dm') ? 'true' : 'false'
+      }).catch(e => console.error('antidelete persist:', e.message));
       return res.json({ success: true, gc: getAnti('gc'), dm: getAnti('dm'), scope: 'global' });
     }
     const cfg = loadUserConfig(user.sessionId);
@@ -1393,7 +1381,7 @@ app.post("/api/antidelete", async (req, res) => {
     }
     cfg.ANTI_DELETE_GC = gc ? 'true' : 'false';
     cfg.ANTI_DELETE_DM = dm ? 'true' : 'false';
-    saveUserConfig(user.sessionId, cfg);
+    await saveUserConfig(user.sessionId, cfg);
     const instance = userMgr.BOT_INSTANCES.get(user.sessionId);
     if (instance && instance.conn) {
       if (!instance.conn._userConfig) instance.conn._userConfig = {};
@@ -1463,7 +1451,7 @@ app.post("/api/antilink", async (req, res) => {
     }
     const cur = loadUserConfig(user.sessionId);
     const next = { ...cur, ...patch };
-    const ok = saveUserConfig(user.sessionId, next);
+    const ok = await saveUserConfig(user.sessionId, next);
     const instance = userMgr.BOT_INSTANCES.get(user.sessionId);
     if (instance && instance.conn) {
       if (!instance.conn._userConfig) instance.conn._userConfig = {};
@@ -1528,7 +1516,7 @@ app.get("/status", (req, res) => {
   const uptime = Math.floor((Date.now() - BOT_START_TIME) / 1000);
   res.json({
     status: botStatus.connected ? "online" : "offline",
-    bot: config.BOT_NAME, owner: config.OWNER_NAME, version: "3.5.0",
+    bot: config.BOT_NAME, owner: config.OWNER_NAME, version: "3.5.1",
     user: botStatus.user, uptime, uptimeFormatted: formatUptime(uptime),
     startedAt: new Date(BOT_START_TIME).toISOString(),
     lastUpdate: botStatus.lastUpdate, domain: global.BOT_DOMAIN,
@@ -1630,7 +1618,7 @@ async function connectToWA() {
         global.ownerConn = conn;
         const mongoCfg = await readConfigFromMongo();
         conn._userConfig = { ...(config._base || {}), ...(mongoCfg || readLocalConfig() || {}) };
-        console.log(`📋 Owner config loaded — AUTO_TYPING=${conn._userConfig.AUTO_TYPING} AUTO_RECORDING=${conn._userConfig.AUTO_RECORDING} ALWAYS_ONLINE=${conn._userConfig.ALWAYS_ONLINE}`);
+        console.log(`📋 Owner config loaded — AUTO_TYPING=${conn._userConfig.AUTO_TYPING} ALWAYS_ONLINE=${conn._userConfig.ALWAYS_ONLINE}`);
         try { const events = require('./command'); events.loadPlugins(); } catch (e) {}
         attachConnHelpers(conn);
         setupBotCommands(conn, { isOwnerBot: true, userInfo: null });
@@ -1660,9 +1648,11 @@ async function connectToWA() {
 
 app.listen(port, () => console.log(`🌐 http://localhost:${port}`));
 
+// ⭐ FIX: MongoDB → config reload → plugins load (correct order)
 (async () => {
   console.log(`🚀 ${config.BOT_NAME} starting...`);
-  try { require('./command').loadPlugins(); } catch (e) { console.error('❌ Plugin load failed:', e.stack || e.message); }
+
+  // 1️⃣ MongoDB connect කරන්න මුලින්ම
   const mongo = require('./lib/mongo');
   const userMgr = require('./user-manager');
   try {
@@ -1675,12 +1665,26 @@ app.listen(port, () => console.log(`🌐 http://localhost:${port}`));
         if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(CONFIG_PATH, JSON.stringify(mongoCfg, null, 2), 'utf8');
         if (typeof config._reload === 'function') config._reload();
+
+        // ⭐ Restore anti-delete settings from MongoDB
+        try {
+          if (typeof setAnti === 'function' && typeof getAnti === 'function') {
+            if (mongoCfg.ANTI_DELETE_GC !== undefined) setAnti('gc', isTrue(mongoCfg.ANTI_DELETE_GC));
+            if (mongoCfg.ANTI_DELETE_DM !== undefined) setAnti('dm', isTrue(mongoCfg.ANTI_DELETE_DM));
+            console.log(`🛡️ Anti-delete restored: gc=${getAnti('gc')} dm=${getAnti('dm')}`);
+          }
+        } catch (e) {}
       }
       await userMgr.loadUsers();
       userMgr.cleanupUnlinked().catch(() => {});
     }
   } catch (e) { console.log('❌ MongoDB error:', e.message); }
 
+  // 2️⃣ ⭐ Config reload වුණාට පස්සේ plugins load කරන්න
+  try { require('./command').loadPlugins(); }
+  catch (e) { console.error('❌ Plugin load failed:', e.stack || e.message); }
+
+  // 3️⃣ Boost store
   try {
     await require('./lib/boostStore').ensureIndexes();
     console.log('✅ Boost store ready');
@@ -1690,6 +1694,7 @@ app.listen(port, () => console.log(`🌐 http://localhost:${port}`));
     try { require('./lib/boostManager').cleanupInactiveRequesters(); } catch (e) {}
   }, 60 * 60 * 1000);
 
+  // 4️⃣ Owner session
   const hasOwnerSession = await ensureOwnerSession();
   if (hasOwnerSession) {
     setTimeout(() => { connectToWA().catch(e => console.log('❌ Initial connect failed:', e.message)); }, 8000);
