@@ -112,7 +112,7 @@ function isBool(val) { return val === 'true' || val === 'false'; }
 
 function renderForm(cfg) {
   const groups = {
-    'Bot Settings': ['PREFIX', 'MODE', 'BUTTON', 'BOT_NAME', 'STICKER_NAME', 'OWNER_NAME', 'OWNER_NUMBER', 'DEV', 'DESCRIPTION'],
+    'Bot Settings': ['PREFIX', 'MODE', 'BUTTON', 'BOT_NAME', 'STICKER_NAME', 'OWNER_NAME', 'OWNER_NUMBER', 'BOT_DOMAIN', 'DEV', 'DESCRIPTION'],
     'Alive Settings': ['ALIVE_IMG', 'LIVE_MSG'],
     'Channels': ['NEWSLETTER_JID', 'NEWSLETTER_NAME', 'CHANNEL_LINK', 'CHANNEL_LINKS', 'GROUP_LINK'],
     'Reaction Settings': ['AUTO_REACT', 'CUSTOM_REACT', 'CUSTOM_REACT_EMOJIS'],
@@ -127,6 +127,18 @@ function renderForm(cfg) {
     for (const f of fields) {
       if (!(f in cfg)) continue;
       const val = String(cfg[f]); const label = f.replace(/_/g, ' ').toLowerCase();
+
+      // ⭐ BOT_DOMAIN gets special placeholder
+      if (f === 'BOT_DOMAIN') {
+        html += '<div class="field"><label>' + label + '</label>' +
+          '<input type="url" data-key="' + f + '" value="' + (val || '') + '" ' +
+          'placeholder="https://your-new-domain.com" autocomplete="off">' +
+          '<small style="display:block;margin-top:6px;color:var(--text-dim);font-size:0.8em">' +
+          'Public URL used in .password command and dashboard links. Leave empty to auto-detect.' +
+          '</small></div>';
+        continue;
+      }
+
       if (isBool(val)) html += '<div class="field"><div class="toggle"><span class="toggle-label">' + label + '</span><label class="switch"><input type="checkbox" data-key="' + f + '" ' + (val === 'true' ? 'checked' : '') + '><span class="slider"></span></label></div></div>';
       else if (f === 'MODE') html += '<div class="field"><label>' + label + '</label><select data-key="' + f + '"><option value="public" ' + (val === 'public' ? 'selected' : '') + '>public</option><option value="private" ' + (val === 'private' ? 'selected' : '') + '>private</option><option value="inbox" ' + (val === 'inbox' ? 'selected' : '') + '>inbox</option><option value="groups" ' + (val === 'groups' ? 'selected' : '') + '>groups</option></select></div>';
       else if (f === 'STATUS_REACT_MODE') html += '<div class="field"><label>' + label + '</label><select data-key="' + f + '"><option value="default" ' + (val === 'default' ? 'selected' : '') + '>default</option><option value="custom" ' + (val === 'custom' ? 'selected' : '') + '>custom</option><option value="random" ' + (val === 'random' ? 'selected' : '') + '>random</option></select></div>';
